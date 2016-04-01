@@ -1,0 +1,1 @@
+/home/joan/ClionProjects/ApiClient/build/CMakeFiles/ApiClient.dir

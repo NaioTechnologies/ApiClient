@@ -1,0 +1,1 @@
+/usr/bin/c++    -std=c++11    CMakeFiles/ApiClient.dir/main.cpp.o  -o ApiClient -rdynamic -lSDL2main -lSDL2 -lSDL2_ttf -lSDL2_gfx 
