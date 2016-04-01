@@ -5,66 +5,15 @@
 #include <unistd.h>
 #include <SDL2/SDL.h>
 
+//#include "ApiCodec/Naio01Codec.hpp"
+#include "Core.hpp"
+
 
 using namespace std;
 using namespace std::chrono;
 
 #define PORT_ROBOT_MOTOR 5555
 #define DEFAULT_HOST_ADDRESS "127.0.0.1"
-
-#include <termios.h>
-#include <fcntl.h>
-#include <thread>
-//#include <sys/ioctl.h>
-//
-//int kbhitLinux(void)
-//{
-//	struct termios oldt, newt;
-//	int ch;
-//	int oldf;
-//
-//	tcgetattr(STDIN_FILENO, &oldt);
-//	newt = oldt;
-//	newt.c_lflag &= ~(ICANON | ECHO);
-//	tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-//	oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
-//	fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
-//
-//	ch = getchar();
-//
-//	tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-//	fcntl(STDIN_FILENO, F_SETFL, oldf);
-//
-//	if(ch != EOF)
-//	{
-//		ungetc(ch, stdin);
-//		return ch;
-//	}
-//
-//	return -1;
-//}
-//
-//int kbhit(void)
-//{
-//	static bool initflag = false;
-//	static const int STDIN = 0;
-//
-//	if (!initflag) {
-//		// Use termios to turn off line buffering
-//		struct termios term;
-//		tcgetattr(STDIN, &term);
-//		term.c_lflag &= ~ICANON;
-//		tcsetattr(STDIN, TCSANOW, &term);
-//		setbuf(stdin, NULL);
-//		initflag = true;
-//	}
-//
-//	int nbbytes;
-//	ioctl(STDIN, FIONREAD, &nbbytes);  // 0 is STDIN
-//	return nbbytes;
-//}
-
-//void drawSDLPoint
 
 SDL_Window *initSDL(const char* name, int szX, int szY, SDL_Renderer** renderer){
 	SDL_Window *screen;
@@ -95,7 +44,26 @@ void exitSDL()
 int main( int argc, char* argv[] )
 {
 	std::string hostAdress = DEFAULT_HOST_ADDRESS;
+
 	int hostPort = PORT_ROBOT_MOTOR;
+
+	// core initialisation
+	Core core;
+
+	core.init();
+
+	if( argc > 1 )
+	{
+		hostAdress = argv[1];
+	}
+
+	if( argc > 2 )
+	{
+		hostPort = atoi( argv[2] );
+	}
+
+
+
 
 	SDL_Window* screen;
 	SDL_Renderer* renderer;
@@ -148,8 +116,9 @@ int main( int argc, char* argv[] )
 		puts("Connected\n");
 	}
 
-	char *message, server_reply[4096];
-	uint8_t receiveBuffer[4096];
+	char *message;
+
+	uint8_t receiveBuffer[4000000];
 
 	ssize_t bytes_recieved = 0;
 
@@ -170,13 +139,26 @@ int main( int argc, char* argv[] )
 	uint8_t leftBackwardCmd[17] =  { 0x4e, 0x41, 0x49, 0x4f, 0x30, 0x31, 0x01, 0x00, 0x00, 0x00, 0x02, 0xCA, 0xAA, 0x00, 0x00, 0x00, 0x00 };
 	uint8_t rightBackwardCmd[17] = { 0x4e, 0x41, 0x49, 0x4f, 0x30, 0x31, 0x01, 0x00, 0x00, 0x00, 0x02, 0xAA, 0xCA, 0x00, 0x00, 0x00, 0x00 };
 
-
-	//int sentSize = (int)write( socket_desc, forwardCmd, 17 );
-
-	//return 0;
+	// Naio01Codec naioCodec;
 
 	while ( true )
 	{
+		int readSize = (int)read( socket_desc, receiveBuffer, 4000000 );
+
+		if( readSize > 0 )
+		{
+			bool packetHeaderDetected = false;
+//
+//			//bool atLeastOnePacketReceived = naioCodec.decode( receiveBuffer, static_cast<uint>( readSize ), packetHeaderDetected );
+//
+//			if( atLeastOnePacketReceived == true )
+//			{
+//
+//			}
+		}
+
+
+
 		if( now >= nextTick )
 		{
 			nextTick = now + duration;

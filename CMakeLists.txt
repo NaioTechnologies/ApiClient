@@ -97,6 +97,7 @@ endif()
 target_link_libraries(
 		${PROJECT_NAME}
 		libapicodec
+		-lpthread
 		-lSDL2main
         -lSDL2
         -lSDL2_ttf
