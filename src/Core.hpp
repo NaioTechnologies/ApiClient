@@ -26,8 +26,7 @@ class Core
 public:
 
 	Core( );
-	Core( std::string hostAdress_;
-	uint16_t hostPort_; );
+	Core( std::string hostAdress_, uint16_t hostPort_ );
 
 	~Core( );
 
