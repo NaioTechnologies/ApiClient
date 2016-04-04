@@ -25,6 +25,7 @@
 
 #include "ApiCodec/Naio01Codec.hpp"
 #include "ApiCodec/ApiMotorsPacket.hpp"
+#include "ApiCodec/ApiStatusPacket.hpp"
 
 class Core
 {
@@ -44,6 +45,8 @@ public:
 
 	void stop( );
 
+	void joinMainThread();
+
 private:
 
 	void call_from_thread( );
@@ -57,6 +60,8 @@ private:
 	bool manageSDLKeyboard();
 
 	bool sendWaitingPackets();
+
+	void manageReceivedPacket( BaseNaio01PacketPtr packetPtr );
 
 public:
 	std::thread mainThread_;
@@ -81,6 +86,7 @@ private:
 	ControlType controlType_;
 
 	ApiMotorsPacketPtr askedApiMotorsPacketPtr_;
+	ApiStatusPacketPtr lastReceivedStatusPacketPtr_;
 
 };
 

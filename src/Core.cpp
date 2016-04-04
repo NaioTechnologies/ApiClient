@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <SDL2/SDL.h>
 #include <ApiCodec/ApiMotorsPacket.hpp>
+#include <ApiCodec/ApiStatusPacket.hpp>
 
 #include "Core.hpp"
 
@@ -22,7 +23,8 @@ Core::Core( ) :
 		naioCodec_{ },
 		sendPacketList_{ },
 		controlType_{ ControlType::CONTROL_TYPE_MANUAL },
-		askedApiMotorsPacketPtr_{ nullptr }
+		askedApiMotorsPacketPtr_{ nullptr },
+		lastReceivedStatusPacketPtr_{ nullptr }
 {
 
 }
@@ -50,7 +52,10 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 	SDL_Window* screen;
 	SDL_Renderer* renderer;
 
-	screen = initSDL("Api Client", 500, 500, &renderer);
+	screen = initSDL("Api Client", 800, 600, &renderer);
+
+	// ignore unused screen
+	(void)screen;
 
 	for ( int i = 0 ; i < SDL_NUM_SCANCODES ; i++ )
 	{
@@ -84,10 +89,8 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 		socketConnected_ = true;
 	}
 
+	// creates main thread
 	mainThread_ = std::thread( &Core::call_from_thread, this );
-	//mainThread_ = std::thread( [=] { call_from_thread(); } );
-
-	//return mainThread_;
 }
 
 // #################################################
@@ -110,10 +113,11 @@ Core::stop( )
 void
 Core::call_from_thread( )
 {
-	std::cout << "Starting main thread." << std::endl;
-
 	uint8_t receiveBuffer[4000000];
 
+	std::cout << "Starting main thread." << std::endl;
+
+	// prepare timers for real time operations
 	milliseconds ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
 
 	int64_t now = static_cast<int64_t>( ms.count() );
@@ -124,18 +128,25 @@ Core::call_from_thread( )
 
 	while( !stopThreadAsked_ )
 	{
+		// any time : read incoming messages.
 		int readSize = (int)read( socket_desc_, receiveBuffer, 4000000 );
 
 		if( readSize > 0 )
 		{
-//			bool packetHeaderDetected = false;
-//
-//			//bool atLeastOnePacketReceived = naioCodec.decode( receiveBuffer, static_cast<uint>( readSize ), packetHeaderDetected );
-//
-//			if( atLeastOnePacketReceived == true )
-//			{
-//
-//			}
+			bool packetHeaderDetected = false;
+
+			bool atLeastOnePacketReceived = naioCodec_.decode( receiveBuffer, static_cast<uint>( readSize ), packetHeaderDetected );
+
+			// manage received messages
+			if( atLeastOnePacketReceived == true )
+			{
+				for( auto&& packetPtr : naioCodec_.currentBasePacketList )
+				{
+					manageReceivedPacket( packetPtr );
+				}
+
+				naioCodec_.currentBasePacketList.clear();
+			}
 		}
 
 		// Test keyboard input.
@@ -156,6 +167,7 @@ Core::call_from_thread( )
 				}
 				else
 				{
+					// if no input given, waits a bit more.
 					std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 250 ) ) );
 				}
 			}
@@ -171,9 +183,9 @@ Core::call_from_thread( )
 
 		// compute next tick
 		ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
-
 		now = static_cast<int64_t>( ms.count() );
 
+		// sleep half a duration
 		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( duration / 2) ) );
 	}
 
@@ -209,20 +221,20 @@ Core::sendWaitingPackets()
 // #################################################
 
 SDL_Window*
-Core::initSDL(const char* name, int szX, int szY, SDL_Renderer** renderer)
+Core::initSDL( const char* name, int szX, int szY, SDL_Renderer** renderer )
 {
 	SDL_Window *screen;
 
-	SDL_Init(SDL_INIT_EVERYTHING);
-	screen = SDL_CreateWindow(name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, szX, szY, SDL_WINDOW_SHOWN);
+	SDL_Init( SDL_INIT_EVERYTHING );
+	screen = SDL_CreateWindow( name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, szX, szY, SDL_WINDOW_SHOWN );
 
-	*renderer =  SDL_CreateRenderer( screen, 0, SDL_RENDERER_ACCELERATED);
+	*renderer =  SDL_CreateRenderer( screen, 0, SDL_RENDERER_ACCELERATED );
 
 	// Set render color to black ( background will be rendered in this color )
 	SDL_SetRenderDrawColor( *renderer, 0, 0, 0, 255 );
 
 	SDL_RenderClear( *renderer );
-	SDL_RenderPresent(*renderer);
+	SDL_RenderPresent( *renderer );
 
 	return screen;
 }
@@ -246,11 +258,11 @@ Core::readSDLKeyboard()
 		{
 			// Cas d'une touche enfoncée
 			case SDL_KEYDOWN:
-				sdlKey_[event.key.keysym.scancode] = 1;
+				sdlKey_[ event.key.keysym.scancode ] = 1;
 				break;
 				// Cas d'une touche relâchée
 			case SDL_KEYUP:
-				sdlKey_[event.key.keysym.scancode] = 0;
+				sdlKey_[ event.key.keysym.scancode ] = 0;
 				break;
 		}
 	}
@@ -266,57 +278,57 @@ Core::manageSDLKeyboard()
 	int8_t left = 0;
 	int8_t right = 0;
 
-	if( sdlKey_[SDL_SCANCODE_ESCAPE] == 1)
+	if( sdlKey_[ SDL_SCANCODE_ESCAPE ] == 1)
 	{
 		stopThreadAsked_ = true;
 
 		return true;
 	}
 
-	if( sdlKey_[SDL_SCANCODE_UP] == 1 and sdlKey_[SDL_SCANCODE_LEFT] == 1 )
+	if( sdlKey_[ SDL_SCANCODE_UP ] == 1 and sdlKey_[ SDL_SCANCODE_LEFT ] == 1 )
 	{
 		left = 32;
 		right = 63;
 		keyPressed = true;
 	}
-	else if( sdlKey_[SDL_SCANCODE_UP] == 1 and sdlKey_[SDL_SCANCODE_RIGHT] == 1 )
+	else if( sdlKey_[ SDL_SCANCODE_UP ] == 1 and sdlKey_[ SDL_SCANCODE_RIGHT ] == 1 )
 	{
 		left = 63;
 		right = 32;
 		keyPressed = true;
 	}
-	else if( sdlKey_[SDL_SCANCODE_DOWN] == 1 and sdlKey_[SDL_SCANCODE_LEFT] == 1 )
+	else if( sdlKey_[ SDL_SCANCODE_DOWN ] == 1 and sdlKey_[ SDL_SCANCODE_LEFT ] == 1 )
 	{
 		left = -32;
 		right = -63;
 		keyPressed = true;
 	}
-	else if( sdlKey_[SDL_SCANCODE_DOWN] == 1 and sdlKey_[SDL_SCANCODE_RIGHT] == 1 )
+	else if( sdlKey_[ SDL_SCANCODE_DOWN ] == 1 and sdlKey_[ SDL_SCANCODE_RIGHT ] == 1 )
 	{
 		left = -63;
 		right = -32;
 		keyPressed = true;
 	}
-	else if( sdlKey_[SDL_SCANCODE_UP] == 1 )
+	else if( sdlKey_[ SDL_SCANCODE_UP ] == 1 )
 	{
 		left = 63;
 		right = 63;
 		keyPressed = true;
 	}
-	else if( sdlKey_[SDL_SCANCODE_DOWN] == 1 )
+	else if( sdlKey_[ SDL_SCANCODE_DOWN ] == 1 )
 	{
 		left = -63;
 		right = -63;
 		keyPressed = true;
 
 	}
-	else if( sdlKey_[SDL_SCANCODE_LEFT] == 1 )
+	else if( sdlKey_[ SDL_SCANCODE_LEFT ] == 1 )
 	{
 		left = -63;
 		right = 63;
 		keyPressed = true;
 	}
-	else if( sdlKey_[SDL_SCANCODE_RIGHT] == 1 )
+	else if( sdlKey_[ SDL_SCANCODE_RIGHT ] == 1 )
 	{
 		left = 63;
 		right = -63;
@@ -326,4 +338,26 @@ Core::manageSDLKeyboard()
 	askedApiMotorsPacketPtr_ = std::make_shared<ApiMotorsPacket>( left, right );
 
 	return keyPressed;
+}
+
+// #################################################
+void
+Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
+{
+	if( std::dynamic_pointer_cast<ApiStatusPacket>( packetPtr ) )
+	{
+		ApiStatusPacketPtr statusPacketPtr = std::dynamic_pointer_cast<ApiStatusPacket>( packetPtr );
+
+		lastReceivedStatusPacketPtr_ = statusPacketPtr;
+
+		std::cout << "theta : " << statusPacketPtr->theta << std::endl;
+	}
+}
+
+
+// #################################################
+void
+Core::joinMainThread()
+{
+	mainThread_.join();
 }

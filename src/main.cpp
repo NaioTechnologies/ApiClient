@@ -64,10 +64,8 @@ int main( int argc, char* argv[] )
 	core.init( hostAdress, static_cast<uint16_t>( hostPort ) );
 
 	// waits the thread exits
-	core.mainThread_.join();
+	core.joinMainThread();
 
-//
-//
 //	SDL_Window* screen;
 //	SDL_Renderer* renderer;
 //
