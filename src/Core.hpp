@@ -17,21 +17,30 @@
 #ifndef CORE_HPP
 #define CORE_HPP
 
-#include <ApiCodec/Naio01Codec.hpp>
+
 #include <iostream>
 #include <thread>
+#include <SDL2/SDL_video.h>
+#include <SDL2/SDL_system.h>
+
+#include "ApiCodec/Naio01Codec.hpp"
+#include "ApiCodec/ApiMotorsPacket.hpp"
 
 class Core
 {
 public:
+	enum ControlType : uint8_t
+	{
+		CONTROL_TYPE_MANUAL = 0x01,
+		CONTROL_TYPE_AUTO_1 = 0x02,
+	};
+
+public:
 
 	Core( );
-	Core( std::string hostAdress_;
-	uint16_t hostPort_; );
-
 	~Core( );
 
-	void init( );
+	void init( std::string hostAdress_, uint16_t hostPort_ );
 
 	void stop( );
 
@@ -39,16 +48,39 @@ private:
 
 	void call_from_thread( );
 
+	SDL_Window *initSDL(const char* name, int szX, int szY, SDL_Renderer** renderer);
+
+	void exitSDL();
+
+	void readSDLKeyboard();
+
+	bool manageSDLKeyboard();
+
+	bool sendWaitingPackets();
+
+public:
+	std::thread mainThread_;
 private:
 	bool stopThreadAsked_;
 	bool threadStarted_;
-	std::thread mainThread_;
+
 
 	std::string hostAdress_;
 	uint16_t hostPort_;
 
-//	std::vector< BaseNaio01PacketPtr > sendPacketList;
-//	std::vector< BaseNaio01PacketPtr > receivedPacketList;
+	int sdlKey_[SDL_NUM_SCANCODES];
+
+	int socket_desc_;
+
+	bool socketConnected_;
+
+	Naio01Codec naioCodec_;
+
+	std::vector< BaseNaio01PacketPtr > sendPacketList_;
+
+	ControlType controlType_;
+
+	ApiMotorsPacketPtr askedApiMotorsPacketPtr_;
 
 };
 
