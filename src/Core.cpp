@@ -17,14 +17,15 @@ using namespace std::chrono;
 Core::Core( ) :
 		stopThreadAsked_{ false },
 		threadStarted_{ false },
+		mainThread_{ },
 		hostAdress_{ "127.0.0.1" },
 		hostPort_{ 5555 },
 		socketConnected_{false},
 		naioCodec_{ },
 		sendPacketList_{ },
-		controlType_{ ControlType::CONTROL_TYPE_MANUAL },
 		askedApiMotorsPacketPtr_{ nullptr },
-		lastReceivedStatusPacketPtr_{ nullptr }
+		lastReceivedStatusPacketPtr_{ nullptr },
+		controlType_{ ControlType::CONTROL_TYPE_MANUAL }
 {
 
 }
