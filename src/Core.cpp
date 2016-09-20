@@ -204,7 +204,7 @@ Core::sendWaitingPackets()
 
 	for( auto&& packet : sendPacketList_ )
 	{
-		cl::BufferUPtr buffer = packet->encode();
+		cl_copy::BufferUPtr buffer = packet->encode();
 
 		int sentSize = (int)write( socket_desc_, buffer->data(), buffer->size() );
 
