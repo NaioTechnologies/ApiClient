@@ -24,6 +24,7 @@ Core::Core( ) :
 		naioCodec_{ },
 		sendPacketList_{ },
 		askedApiMotorsPacketPtr_{ nullptr },
+		askedHaMotorsPacketPtr_{ nullptr },
 		lastReceivedStatusPacketPtr_{ nullptr },
 		controlType_{ ControlType::CONTROL_TYPE_MANUAL }
 {
@@ -162,14 +163,22 @@ Core::call_from_thread( )
 
 			if( controlType_ == ControlType::CONTROL_TYPE_MANUAL )
 			{
-				if( askedApiMotorsPacketPtr_ != nullptr )
-				{
-					sendPacketList_.emplace_back( askedApiMotorsPacketPtr_ );
-				}
-				else
+				if( askedApiMotorsPacketPtr_ == nullptr && askedApiMotorsPacketPtr_ )
 				{
 					// if no input given, waits a bit more.
 					std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 250 ) ) );
+				}
+				else
+				{
+					if( askedApiMotorsPacketPtr_ != nullptr )
+					{
+						sendPacketList_.emplace_back( askedApiMotorsPacketPtr_ );
+					}
+
+					if( askedHaMotorsPacketPtr_ != nullptr )
+					{
+						sendPacketList_.emplace_back( askedHaMotorsPacketPtr_ );
+					}
 				}
 			}
 		}
@@ -337,6 +346,7 @@ Core::manageSDLKeyboard()
 	}
 
 	askedApiMotorsPacketPtr_ = std::make_shared<ApiMotorsPacket>( left, right );
+	askedHaMotorsPacketPtr_ = std::make_shared<HaMotorsPacket>( left * 2, right * 2 );
 
 	return keyPressed;
 }

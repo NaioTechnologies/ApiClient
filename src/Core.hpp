@@ -25,6 +25,8 @@
 #include "ApiCodec/Naio01Codec.hpp"
 #include "ApiCodec/ApiMotorsPacket.hpp"
 #include "ApiCodec/ApiStatusPacket.hpp"
+#include "ApiCodec/HaMotorsPacket.hpp"
+
 
 class Core
 {
@@ -87,6 +89,7 @@ private:
 	Naio01Codec naioCodec_;
 	std::vector< BaseNaio01PacketPtr > sendPacketList_;
 	ApiMotorsPacketPtr askedApiMotorsPacketPtr_;
+	HaMotorsPacketPtr askedHaMotorsPacketPtr_;
 	ApiStatusPacketPtr lastReceivedStatusPacketPtr_;
 
 	// ia part
