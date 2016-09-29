@@ -195,7 +195,35 @@ Core::call_from_thread( )
 		// sleep half a duration
 		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( duration / 2) ) );
 
+
+		SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 255); // the rect color (solid red)
+		SDL_Rect background;
+		background.w = 800;
+		background.h = 480;
+		background.y = 0;
+		background.x = 0;
+
+		SDL_RenderFillRect(renderer_, &background);
+
 		draw_robot();
+
+		static int flying_pixel_x = 0;
+
+		if( flying_pixel_x > 800 )
+		{
+			flying_pixel_x = 0;
+		}
+
+		SDL_SetRenderDrawColor(renderer_, 200, 150, 125, 255); // the rect color (solid red)
+		SDL_Rect flying_pixel;
+		flying_pixel.w = 1;
+		flying_pixel.h = 1;
+		flying_pixel.y = 480 - 40;
+		flying_pixel.x = flying_pixel_x;
+
+		flying_pixel_x++;
+
+		SDL_RenderFillRect(renderer_, &flying_pixel);
 
 		SDL_RenderPresent( renderer_ );
 	}
@@ -210,7 +238,7 @@ Core::call_from_thread( )
 void Core::draw_robot()
 {
 	SDL_SetRenderDrawColor(renderer_, 200, 200, 200, 255); // the rect color (solid red)
-	SDL_Rect main; // the rectangle
+	SDL_Rect main;
 	main.w = 42;
 	main.h = 80;
 	main.y = 480 - main.h;
@@ -219,7 +247,7 @@ void Core::draw_robot()
 	SDL_RenderFillRect(renderer_, &main);
 
 	SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255); // the rect color (solid red)
-	SDL_Rect flw; // the rectangle
+	SDL_Rect flw;
 	flw.w = 8;
 	flw.h = 20;
 	flw.y = 480 - 75;
@@ -228,7 +256,7 @@ void Core::draw_robot()
 	SDL_RenderFillRect(renderer_, &flw);
 
 	SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255); // the rect color (solid red)
-	SDL_Rect frw; // the rectangle
+	SDL_Rect frw;
 	frw.w = 8;
 	frw.h = 20;
 	frw.y = 480 - 75;
@@ -237,7 +265,7 @@ void Core::draw_robot()
 	SDL_RenderFillRect(renderer_, &frw);
 
 	SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255); // the rect color (solid red)
-	SDL_Rect rlw; // the rectangle
+	SDL_Rect rlw;
 	rlw.w = 8;
 	rlw.h = 20;
 	rlw.y = 480 - 5 - 20;
@@ -246,7 +274,7 @@ void Core::draw_robot()
 	SDL_RenderFillRect(renderer_, &rlw);
 
 	SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255); // the rect color (solid red)
-	SDL_Rect rrw; // the rectangle
+	SDL_Rect rrw;
 	rrw.w = 8;
 	rrw.h = 20;
 	rrw.y = 480 - 5 -20;
@@ -255,7 +283,7 @@ void Core::draw_robot()
 	SDL_RenderFillRect(renderer_, &rrw);
 
 	SDL_SetRenderDrawColor(renderer_, 120, 120, 120, 255); // the rect color (solid red)
-	SDL_Rect lidar; // the rectangle
+	SDL_Rect lidar;
 	lidar.w = 8;
 	lidar.h = 8;
 	lidar.y = 480 - 80 - 8;
