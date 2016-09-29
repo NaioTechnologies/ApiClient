@@ -123,7 +123,7 @@ Core::call_from_thread( )
 	milliseconds ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
 
 	int64_t now = static_cast<int64_t>( ms.count() );
-	int64_t duration = 50;
+	int64_t duration = 25;
 	int64_t nextTick = now + duration;
 
 	threadStarted_ = true;
