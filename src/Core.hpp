@@ -67,6 +67,7 @@ private:
 	// communications
 	bool sendWaitingPackets();
 	void manageReceivedPacket( BaseNaio01PacketPtr packetPtr );
+	void draw_robot();
 
 public:
 
@@ -94,6 +95,9 @@ private:
 
 	// ia part
 	ControlType controlType_;
+
+	SDL_Window* screen_;
+	SDL_Renderer* renderer_;
 };
 
 #endif

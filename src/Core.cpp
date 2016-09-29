@@ -51,13 +51,10 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 	socketConnected_ = false;
 
 	// create graphics
-	SDL_Window* screen;
-	SDL_Renderer* renderer;
-
-	screen = initSDL("Api Client", 800, 600, &renderer);
+	screen_ = initSDL("Api Client", 800, 480, &renderer_);
 
 	// ignore unused screen
-	(void)screen;
+	(void)screen_;
 
 	for ( int i = 0 ; i < SDL_NUM_SCANCODES ; i++ )
 	{
@@ -197,12 +194,74 @@ Core::call_from_thread( )
 
 		// sleep half a duration
 		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( duration / 2) ) );
+
+		draw_robot();
+
+		SDL_RenderPresent( renderer_ );
 	}
 
 	threadStarted_ = false;
 	stopThreadAsked_ = false;
 
 	std::cout << "Stopping main thread." << std::endl;
+}
+
+// #################################################
+void Core::draw_robot()
+{
+	SDL_SetRenderDrawColor(renderer_, 200, 200, 200, 255); // the rect color (solid red)
+	SDL_Rect main; // the rectangle
+	main.w = 42;
+	main.h = 80;
+	main.y = 480 - main.h;
+	main.x = 400 - ( main.w / 2);
+
+	SDL_RenderFillRect(renderer_, &main);
+
+	SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255); // the rect color (solid red)
+	SDL_Rect flw; // the rectangle
+	flw.w = 8;
+	flw.h = 20;
+	flw.y = 480 - 75;
+	flw.x = 400 - 21;
+
+	SDL_RenderFillRect(renderer_, &flw);
+
+	SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255); // the rect color (solid red)
+	SDL_Rect frw; // the rectangle
+	frw.w = 8;
+	frw.h = 20;
+	frw.y = 480 - 75;
+	frw.x = 400 + 21 - 8;
+
+	SDL_RenderFillRect(renderer_, &frw);
+
+	SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255); // the rect color (solid red)
+	SDL_Rect rlw; // the rectangle
+	rlw.w = 8;
+	rlw.h = 20;
+	rlw.y = 480 - 5 - 20;
+	rlw.x = 400 - 21;
+
+	SDL_RenderFillRect(renderer_, &rlw);
+
+	SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255); // the rect color (solid red)
+	SDL_Rect rrw; // the rectangle
+	rrw.w = 8;
+	rrw.h = 20;
+	rrw.y = 480 - 5 -20;
+	rrw.x = 400 + 21 - 8;
+
+	SDL_RenderFillRect(renderer_, &rrw);
+
+	SDL_SetRenderDrawColor(renderer_, 120, 120, 120, 255); // the rect color (solid red)
+	SDL_Rect lidar; // the rectangle
+	lidar.w = 8;
+	lidar.h = 8;
+	lidar.y = 480 - 80 - 8;
+	lidar.x = 400 - 4;
+
+	SDL_RenderFillRect(renderer_, &lidar);
 }
 
 // #################################################
