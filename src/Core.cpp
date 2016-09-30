@@ -25,7 +25,8 @@ Core::Core( ) :
 		sendPacketList_{ },
 		askedApiMotorsPacketPtr_{ nullptr },
 		askedHaMotorsPacketPtr_{ nullptr },
-		lastReceivedStatusPacketPtr_{ nullptr },
+		api_lidar_packet_ptr_{ nullptr },
+		ha_lidar_packet_ptr_{ nullptr },
 		controlType_{ ControlType::CONTROL_TYPE_MANUAL }
 {
 
@@ -196,6 +197,8 @@ Core::call_from_thread( )
 		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( duration / 2) ) );
 
 
+		// drawing part.
+
 		SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 255); // the rect color (solid red)
 		SDL_Rect background;
 		background.w = 800;
@@ -206,6 +209,31 @@ Core::call_from_thread( )
 		SDL_RenderFillRect(renderer_, &background);
 
 		draw_robot();
+
+		uint16_t lidar_distance_[271];
+
+		ha_lidar_packet_ptr_access.lock();
+		api_lidar_packet_ptr_access.lock();
+
+		if( ha_lidar_packet_ptr_ != nullptr )
+		{
+			for( int i = 0; i < 271 ; i++ )
+			{
+				lidar_distance_[i] = ha_lidar_packet_ptr_->distance[ i ];
+			}
+		}
+		else if( api_lidar_packet_ptr_ != nullptr )
+		{
+			for( int i = 0; i < 271 ; i++ )
+			{
+				lidar_distance_[i] = 5000;
+			}
+		}
+
+		api_lidar_packet_ptr_access.unlock();
+		ha_lidar_packet_ptr_access.unlock();
+
+		draw_lidar( lidar_distance_ );
 
 		static int flying_pixel_x = 0;
 
@@ -235,9 +263,36 @@ Core::call_from_thread( )
 }
 
 // #################################################
+void Core::draw_lidar( uint16_t lidar_distance_[271] )
+{
+	for( int i = 0; i < 180 ; i++ )
+	{
+		double dist = static_cast<double>( lidar_distance_[ i + 45] ) / 10.0f;
+
+		if( dist < 3.0f )
+		{
+			dist = 5000.0f;
+		}
+
+		double x = 400.0 + ( dist * cos( 180.0 - static_cast<double>( i ) ) );
+		double y = 400.0 + ( dist * sin( 180.0 - static_cast<double>( i ) ) );
+
+		SDL_SetRenderDrawColor(renderer_, 255, 255, 255, 255);
+		SDL_Rect lidar_pixel;
+
+		lidar_pixel.w = 1;
+		lidar_pixel.h = 1;
+		lidar_pixel.x = static_cast<int>( x );
+		lidar_pixel.y = static_cast<int>( y );
+
+		SDL_RenderFillRect(renderer_, &lidar_pixel);
+	}
+}
+
+// #################################################
 void Core::draw_robot()
 {
-	SDL_SetRenderDrawColor(renderer_, 200, 200, 200, 255); // the rect color (solid red)
+	SDL_SetRenderDrawColor(renderer_, 200, 200, 200, 255);
 	SDL_Rect main;
 	main.w = 42;
 	main.h = 80;
@@ -246,7 +301,7 @@ void Core::draw_robot()
 
 	SDL_RenderFillRect(renderer_, &main);
 
-	SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255); // the rect color (solid red)
+	SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255);
 	SDL_Rect flw;
 	flw.w = 8;
 	flw.h = 20;
@@ -255,7 +310,7 @@ void Core::draw_robot()
 
 	SDL_RenderFillRect(renderer_, &flw);
 
-	SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255); // the rect color (solid red)
+	SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255);
 	SDL_Rect frw;
 	frw.w = 8;
 	frw.h = 20;
@@ -264,7 +319,7 @@ void Core::draw_robot()
 
 	SDL_RenderFillRect(renderer_, &frw);
 
-	SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255); // the rect color (solid red)
+	SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255);
 	SDL_Rect rlw;
 	rlw.w = 8;
 	rlw.h = 20;
@@ -273,7 +328,7 @@ void Core::draw_robot()
 
 	SDL_RenderFillRect(renderer_, &rlw);
 
-	SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255); // the rect color (solid red)
+	SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255);
 	SDL_Rect rrw;
 	rrw.w = 8;
 	rrw.h = 20;
@@ -282,7 +337,7 @@ void Core::draw_robot()
 
 	SDL_RenderFillRect(renderer_, &rrw);
 
-	SDL_SetRenderDrawColor(renderer_, 120, 120, 120, 255); // the rect color (solid red)
+	SDL_SetRenderDrawColor(renderer_, 120, 120, 120, 255);
 	SDL_Rect lidar;
 	lidar.w = 8;
 	lidar.h = 8;
@@ -432,8 +487,10 @@ Core::manageSDLKeyboard()
 		keyPressed = true;
 	}
 
+	motor_packet_access_.lock();
 	askedApiMotorsPacketPtr_ = std::make_shared<ApiMotorsPacket>( left, right );
 	askedHaMotorsPacketPtr_ = std::make_shared<HaMotorsPacket>( left * 2, right * 2 );
+	motor_packet_access_.unlock();
 
 	return keyPressed;
 }
@@ -442,16 +499,37 @@ Core::manageSDLKeyboard()
 void
 Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 {
+	std::cout << "Packet received id : " << static_cast<int>( packetPtr->getPacketId() ) << std::endl;
+
 	if( std::dynamic_pointer_cast<ApiStatusPacket>( packetPtr ) )
 	{
 		ApiStatusPacketPtr statusPacketPtr = std::dynamic_pointer_cast<ApiStatusPacket>( packetPtr );
 
-		lastReceivedStatusPacketPtr_ = statusPacketPtr;
+		//lastReceivedStatusPacketPtr_ = statusPacketPtr;
 
 		std::cout << "theta : " << statusPacketPtr->theta << std::endl;
 	}
-}
+	else if( std::dynamic_pointer_cast<HaLidarPacketPtr>( packetPtr )  )
+	{
+		HaLidarPacketPtr haLidarPacketPtr = std::dynamic_pointer_cast<HaLidarPacket>( packetPtr );
 
+		ha_lidar_packet_ptr_access.lock();
+		ha_lidar_packet_ptr_ = haLidarPacketPtr;
+		ha_lidar_packet_ptr_access.unlock();
+
+		std::cout << "ha lidar received." << std::endl;
+	}
+	else if( std::dynamic_pointer_cast<ApiLidarPacketPtr>( packetPtr )  )
+	{
+		ApiLidarPacketPtr apiLidarPacketPtr = std::dynamic_pointer_cast<ApiLidarPacket>( packetPtr );
+
+		api_lidar_packet_ptr_access.lock();
+		api_lidar_packet_ptr_ = apiLidarPacketPtr;
+		api_lidar_packet_ptr_access.unlock();
+
+		std::cout << "api lidar received." << std::endl;
+	}
+}
 
 // #################################################
 void

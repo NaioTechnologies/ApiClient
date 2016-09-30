@@ -19,8 +19,11 @@
 
 #include <iostream>
 #include <thread>
+#include <mutex>
 #include <SDL2/SDL_video.h>
 #include <SDL2/SDL_system.h>
+#include <HaLidarPacket.hpp>
+#include <ApiLidarPacket.hpp>
 
 #include "ApiCodec/Naio01Codec.hpp"
 #include "ApiCodec/ApiMotorsPacket.hpp"
@@ -68,6 +71,7 @@ private:
 	bool sendWaitingPackets();
 	void manageReceivedPacket( BaseNaio01PacketPtr packetPtr );
 	void draw_robot();
+	void draw_lidar( uint16_t lidar_distance_[271] );
 
 public:
 
@@ -89,9 +93,15 @@ private:
 	// codec part
 	Naio01Codec naioCodec_;
 	std::vector< BaseNaio01PacketPtr > sendPacketList_;
+	std::mutex motor_packet_access_;
 	ApiMotorsPacketPtr askedApiMotorsPacketPtr_;
 	HaMotorsPacketPtr askedHaMotorsPacketPtr_;
-	ApiStatusPacketPtr lastReceivedStatusPacketPtr_;
+
+	std::mutex api_lidar_packet_ptr_access;
+	ApiLidarPacketPtr api_lidar_packet_ptr_;
+
+	std::mutex ha_lidar_packet_ptr_access;
+	HaLidarPacketPtr ha_lidar_packet_ptr_;
 
 	// ia part
 	ControlType controlType_;
