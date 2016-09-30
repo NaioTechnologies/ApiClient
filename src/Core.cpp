@@ -127,8 +127,8 @@ Core::call_from_thread( )
 
 	threadStarted_ = true;
 
-	ApiIhmDisplayPacketPtr api_display_packet = std::make_shared<ApiIhmDisplayPacket>();
-	cl_copy::BufferUPtr first_buffer = api_display_packet->encode();
+	ApiMotorsPacketPtr first_packet = std::make_shared<ApiMotorsPacket>( 0 , 0 );
+	cl_copy::BufferUPtr first_buffer = first_packet->encode();
 	write( socket_desc_, first_buffer->data(), first_buffer->size() );
 
 	while( !stopThreadAsked_ )
