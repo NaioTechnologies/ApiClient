@@ -29,6 +29,8 @@
 #include "ApiCodec/ApiMotorsPacket.hpp"
 #include "ApiCodec/ApiStatusPacket.hpp"
 #include "ApiCodec/HaMotorsPacket.hpp"
+#include "ApiCodec/HaGyroPacket.hpp"
+#include "ApiCodec/HaAcceleroPacket.hpp"
 
 
 class Core
@@ -102,6 +104,12 @@ private:
 
 	std::mutex ha_lidar_packet_ptr_access;
 	HaLidarPacketPtr ha_lidar_packet_ptr_;
+
+	std::mutex ha_gyro_packet_ptr_access_;
+	HaGyroPacketPtr ha_gyro_packet_ptr_;
+
+	std::mutex ha_accel_packet_ptr_access;
+	HaAcceleroPacketPtr ha_accel_packet_ptr_;
 
 	// ia part
 	ControlType controlType_;

@@ -119,6 +119,14 @@ Core::call_from_thread( )
 {
 	uint8_t receiveBuffer[4000000];
 
+	SDL_Color white = { 255, 255, 255, 0 };
+	TTF_Font* font = TTF_OpenFont("mono.ttf", 12);
+
+	if (font == nullptr)
+	{
+		std::cerr << "Faild to load SDL Font! Error: " << TTF_GetError() << '\n';
+	}
+
 	std::cout << "Starting main thread." << std::endl;
 
 	// prepare timers for real time operations
@@ -241,19 +249,51 @@ Core::call_from_thread( )
 
 		draw_lidar( lidar_distance_ );
 
-		SDL_Color white = {255, 255, 255};
-		TTF_Font* font = TTF_OpenFont("mono.ttf", 12);
-		SDL_Surface* surfaceMessage = TTF_RenderText_Blended( font, "TEST", white );
-		SDL_Texture* message = SDL_CreateTextureFromSurface( renderer_, surfaceMessage );
-		SDL_Rect message_rect;
-		message_rect.x = 200;
-		message_rect.y = 200;
-		message_rect.w = 100;
-		message_rect.h = 20;
-		SDL_QueryTexture( message, NULL, NULL, &message_rect.w, &message_rect.h );
-		SDL_RenderCopy( renderer_, message, NULL, &message_rect );
-		SDL_DestroyTexture(message);
-		SDL_FreeSurface(surfaceMessage);
+		// ##############################################
+		char gyro_buff[100];
+		if( ha_gyro_packet_ptr_ != nullptr )
+		{
+			snprintf(gyro_buff, sizeof(gyro_buff), "Gyro  : %d ; %d, %d", ha_gyro_packet_ptr_->x, ha_gyro_packet_ptr_->y,
+					 ha_gyro_packet_ptr_->z);
+		}
+		else
+		{
+			snprintf(gyro_buff, sizeof(gyro_buff), "Gyro  : N/A ; N/A, N/A" );
+		}
+
+
+		char accel_buff[100];
+		if( ha_gyro_packet_ptr_ != nullptr )
+		{
+			snprintf(accel_buff, sizeof(accel_buff), "Accel : %d ; %d, %d", ha_accel_packet_ptr_->x,
+					 ha_accel_packet_ptr_->y, ha_accel_packet_ptr_->z);
+		}
+		else
+		{
+			snprintf(accel_buff, sizeof(accel_buff), "Accel : N/A ; N/A, N/A" );
+		}
+
+		SDL_Surface* surfaceMessageGyro = TTF_RenderText_Solid( font, gyro_buff, white );
+		SDL_Texture* messageGyro = SDL_CreateTextureFromSurface( renderer_, surfaceMessageGyro );
+		SDL_FreeSurface( surfaceMessageGyro );
+		SDL_Rect message_rect_gyro;
+		message_rect_gyro.x = 010;
+		message_rect_gyro.y = 410;
+		SDL_QueryTexture( messageGyro, NULL, NULL, &message_rect_gyro.w, &message_rect_gyro.h );
+		SDL_RenderCopy( renderer_, messageGyro, NULL, &message_rect_gyro );
+		SDL_DestroyTexture( messageGyro );
+
+		SDL_Surface* surfaceMessageAccel = TTF_RenderText_Solid( font, accel_buff, white );
+		SDL_Texture* messageAccel = SDL_CreateTextureFromSurface( renderer_, surfaceMessageAccel );
+		SDL_FreeSurface( surfaceMessageAccel );
+		SDL_Rect message_rect_accel;
+		message_rect_accel.x = 010;
+		message_rect_accel.y = 420;
+		SDL_QueryTexture( messageAccel, NULL, NULL, &message_rect_accel.w, &message_rect_accel.h );
+		SDL_RenderCopy( renderer_, messageAccel, NULL, &message_rect_accel );
+		SDL_DestroyTexture( messageAccel );
+
+		// ##############################################
 
 		static int flying_pixel_x = 0;
 
@@ -401,18 +441,34 @@ Core::sendWaitingPackets()
 SDL_Window*
 Core::initSDL( const char* name, int szX, int szY, SDL_Renderer** renderer )
 {
+	std::cout << "Init SDL";
+
 	SDL_Window *screen;
+	std::cout << ".";
 
 	SDL_Init( SDL_INIT_EVERYTHING );
+	std::cout << ".";
+
 	screen = SDL_CreateWindow( name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, szX, szY, SDL_WINDOW_SHOWN );
+	std::cout << ".";
 
 	*renderer =  SDL_CreateRenderer( screen, 0, SDL_RENDERER_ACCELERATED );
+	std::cout << ".";
+
+	TTF_Init();
+	std::cout << ".";
 
 	// Set render color to black ( background will be rendered in this color )
 	SDL_SetRenderDrawColor( *renderer, 0, 0, 0, 255 );
+	std::cout << ".";
 
 	SDL_RenderClear( *renderer );
+	std::cout << ".";
+
 	SDL_RenderPresent( *renderer );
+	std::cout << ".";
+
+	std::cout << "DONE" << std::endl;
 
 	return screen;
 }
@@ -557,13 +613,21 @@ Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 	{
 		HaGyroPacketPtr haGyroPacketPtr = std::dynamic_pointer_cast<HaGyroPacket>( packetPtr );
 
-		std::cout << "gyro : " << haGyroPacketPtr->x << " ; " << haGyroPacketPtr->y << " ; " << haGyroPacketPtr->z << std::endl;
+		ha_gyro_packet_ptr_access_.lock();
+		ha_gyro_packet_ptr_ = haGyroPacketPtr;
+		ha_gyro_packet_ptr_access_.unlock();
+
+		//std::cout << "gyro : " << haGyroPacketPtr->x << " ; " << haGyroPacketPtr->y << " ; " << haGyroPacketPtr->z << std::endl;
 	}
 	else if( std::dynamic_pointer_cast<HaAcceleroPacket>( packetPtr )  )
 	{
 		HaAcceleroPacketPtr haAcceleroPacketPtr = std::dynamic_pointer_cast<HaAcceleroPacket>( packetPtr );
 
-		std::cout << "accel : " << haAcceleroPacketPtr->x << " ; " << haAcceleroPacketPtr->y << " ; " << haAcceleroPacketPtr->z << std::endl;
+		ha_accel_packet_ptr_access.lock();
+		ha_accel_packet_ptr_ = haAcceleroPacketPtr;
+		ha_accel_packet_ptr_access.unlock();
+
+		//std::cout << "accel : " << haAcceleroPacketPtr->x << " ; " << haAcceleroPacketPtr->y << " ; " << haAcceleroPacketPtr->z << std::endl;
 	}
 }
 
