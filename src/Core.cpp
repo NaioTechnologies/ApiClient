@@ -6,6 +6,7 @@
 #include <SDL2/SDL.h>
 #include <ApiCodec/ApiMotorsPacket.hpp>
 #include <ApiCodec/ApiStatusPacket.hpp>
+#include <ApiIhmDisplayPacket.hpp>
 
 #include "Core.hpp"
 
@@ -125,6 +126,10 @@ Core::call_from_thread( )
 	int64_t nextTick = now + duration;
 
 	threadStarted_ = true;
+
+	ApiIhmDisplayPacketPtr api_display_packet = std::make_shared<ApiIhmDisplayPacket>();
+	cl_copy::BufferUPtr first_buffer = api_display_packet->encode();
+	write( socket_desc_, first_buffer->data(), first_buffer->size() );
 
 	while( !stopThreadAsked_ )
 	{
