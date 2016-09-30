@@ -4,9 +4,12 @@
 #include <chrono>
 #include <unistd.h>
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include <ApiCodec/ApiMotorsPacket.hpp>
 #include <ApiCodec/ApiStatusPacket.hpp>
 #include <ApiIhmDisplayPacket.hpp>
+#include <HaGyroPacket.hpp>
+#include <HaAcceleroPacket.hpp>
 
 #include "Core.hpp"
 
@@ -122,7 +125,7 @@ Core::call_from_thread( )
 	milliseconds ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
 
 	int64_t now = static_cast<int64_t>( ms.count() );
-	int64_t duration = 25;
+	int64_t duration = 15;
 	int64_t nextTick = now + duration;
 
 	threadStarted_ = true;
@@ -201,9 +204,7 @@ Core::call_from_thread( )
 		// sleep half a duration
 		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( duration / 2) ) );
 
-
 		// drawing part.
-
 		SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 255); // the rect color (solid red)
 		SDL_Rect background;
 		background.w = 800;
@@ -240,6 +241,20 @@ Core::call_from_thread( )
 
 		draw_lidar( lidar_distance_ );
 
+		SDL_Color white = {255, 255, 255};
+		TTF_Font* font = TTF_OpenFont("mono.ttf", 12);
+		SDL_Surface* surfaceMessage = TTF_RenderText_Blended( font, "TEST", white );
+		SDL_Texture* message = SDL_CreateTextureFromSurface( renderer_, surfaceMessage );
+		SDL_Rect message_rect;
+		message_rect.x = 200;
+		message_rect.y = 200;
+		message_rect.w = 100;
+		message_rect.h = 20;
+		SDL_QueryTexture( message, NULL, NULL, &message_rect.w, &message_rect.h );
+		SDL_RenderCopy( renderer_, message, NULL, &message_rect );
+		SDL_DestroyTexture(message);
+		SDL_FreeSurface(surfaceMessage);
+
 		static int flying_pixel_x = 0;
 
 		if( flying_pixel_x > 800 )
@@ -270,27 +285,33 @@ Core::call_from_thread( )
 // #################################################
 void Core::draw_lidar( uint16_t lidar_distance_[271] )
 {
-	for( int i = 0; i < 180 ; i++ )
+	for( int i = 0; i < 271 ; i++ )
 	{
-		double dist = static_cast<double>( lidar_distance_[ i + 45] ) / 10.0f;
+		double dist = static_cast<double>( lidar_distance_[ i ] ) / 10.0f;
 
 		if( dist < 3.0f )
 		{
 			dist = 5000.0f;
 		}
 
-		double x = 400.0 + ( dist * cos( 180.0 - static_cast<double>( i ) ) );
-		double y = 400.0 + ( dist * sin( 180.0 - static_cast<double>( i ) ) );
+		if( i > 45 )
+		{
+			double x_cos = dist * cos(  static_cast<double>( ( i - 45 ) * M_PI / 180. ) );
+			double y_sin = dist * sin(  static_cast<double>( ( i - 45 ) * M_PI / 180. ) );
 
-		SDL_SetRenderDrawColor(renderer_, 255, 255, 255, 255);
-		SDL_Rect lidar_pixel;
+			double x = 400.0 + x_cos;
+			double y = 400.0 - y_sin;
 
-		lidar_pixel.w = 1;
-		lidar_pixel.h = 1;
-		lidar_pixel.x = static_cast<int>( x );
-		lidar_pixel.y = static_cast<int>( y );
+			SDL_SetRenderDrawColor(renderer_, 255, 255, 255, 255);
+			SDL_Rect lidar_pixel;
 
-		SDL_RenderFillRect(renderer_, &lidar_pixel);
+			lidar_pixel.w = 1;
+			lidar_pixel.h = 1;
+			lidar_pixel.x = static_cast<int>( x );
+			lidar_pixel.y = static_cast<int>( y );
+
+			SDL_RenderFillRect(renderer_, &lidar_pixel);
+		}
 	}
 }
 
@@ -514,25 +535,35 @@ Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 
 		std::cout << "theta : " << statusPacketPtr->theta << std::endl;
 	}
-	else if( std::dynamic_pointer_cast<HaLidarPacketPtr>( packetPtr )  )
+	else if( std::dynamic_pointer_cast<HaLidarPacket>( packetPtr )  )
 	{
 		HaLidarPacketPtr haLidarPacketPtr = std::dynamic_pointer_cast<HaLidarPacket>( packetPtr );
 
 		ha_lidar_packet_ptr_access.lock();
 		ha_lidar_packet_ptr_ = haLidarPacketPtr;
 		ha_lidar_packet_ptr_access.unlock();
-
-		std::cout << "ha lidar received." << std::endl;
 	}
-	else if( std::dynamic_pointer_cast<ApiLidarPacketPtr>( packetPtr )  )
+	else if( std::dynamic_pointer_cast<ApiLidarPacket>( packetPtr )  )
 	{
+		std::cout << "api lidar received." << std::endl;
+
 		ApiLidarPacketPtr apiLidarPacketPtr = std::dynamic_pointer_cast<ApiLidarPacket>( packetPtr );
 
 		api_lidar_packet_ptr_access.lock();
 		api_lidar_packet_ptr_ = apiLidarPacketPtr;
 		api_lidar_packet_ptr_access.unlock();
+	}
+	else if( std::dynamic_pointer_cast<HaGyroPacket>( packetPtr )  )
+	{
+		HaGyroPacketPtr haGyroPacketPtr = std::dynamic_pointer_cast<HaGyroPacket>( packetPtr );
 
-		std::cout << "api lidar received." << std::endl;
+		std::cout << "gyro : " << haGyroPacketPtr->x << " ; " << haGyroPacketPtr->y << " ; " << haGyroPacketPtr->z << std::endl;
+	}
+	else if( std::dynamic_pointer_cast<HaAcceleroPacket>( packetPtr )  )
+	{
+		HaAcceleroPacketPtr haAcceleroPacketPtr = std::dynamic_pointer_cast<HaAcceleroPacket>( packetPtr );
+
+		std::cout << "accel : " << haAcceleroPacketPtr->x << " ; " << haAcceleroPacketPtr->y << " ; " << haAcceleroPacketPtr->z << std::endl;
 	}
 }
 
