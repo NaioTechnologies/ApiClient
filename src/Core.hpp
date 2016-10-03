@@ -67,7 +67,7 @@ private:
 	void call_from_thread( );
 
 	// graph function
-	SDL_Window *initSDL(const char* name, int szX, int szY, SDL_Renderer** renderer);
+	SDL_Window *initSDL(const char* name, int szX, int szY );
 //	void afficherTexte(SDL_Renderer *renderer, char texte[200], int x, int y, int monospace);
 
 	void exitSDL();

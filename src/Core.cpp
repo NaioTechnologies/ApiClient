@@ -56,11 +56,11 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 	threadStarted_ = false;
 	socketConnected_ = false;
 
-	// create graphics
-	screen_ = initSDL("Api Client", 800, 480, &renderer_);
-
-	// ignore unused screen
-	(void)screen_;
+//	// create graphics
+//	screen_ = initSDL("Api Client", 800, 480 );
+//
+//	// ignore unused screen
+//	(void)screen_;
 
 	for ( int i = 0 ; i < SDL_NUM_SCANCODES ; i++ )
 	{
@@ -118,6 +118,12 @@ Core::stop( )
 void
 Core::call_from_thread( )
 {
+    // create graphics
+    screen_ = initSDL("Api Client", 800, 480 );
+
+    // ignore unused screen
+    (void)screen_;
+
 	uint8_t receiveBuffer[4000000];
 
 	std::cout << "Starting main thread." << std::endl;
@@ -486,7 +492,7 @@ Core::sendWaitingPackets()
 // #################################################
 
 SDL_Window*
-Core::initSDL( const char* name, int szX, int szY, SDL_Renderer** renderer )
+Core::initSDL( const char* name, int szX, int szY )
 {
 	std::cout << "Init SDL";
 
@@ -499,20 +505,17 @@ Core::initSDL( const char* name, int szX, int szY, SDL_Renderer** renderer )
 	screen = SDL_CreateWindow( name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, szX, szY, SDL_WINDOW_SHOWN );
 	std::cout << ".";
 
-	*renderer =  SDL_CreateRenderer( screen, 0, SDL_RENDERER_ACCELERATED );
+    renderer_ =  SDL_CreateRenderer( screen, 0, SDL_RENDERER_ACCELERATED );
 	std::cout << ".";
 
 	TTF_Init();
 	std::cout << ".";
 
 	// Set render color to black ( background will be rendered in this color )
-	SDL_SetRenderDrawColor( *renderer, 0, 0, 0, 255 );
+	SDL_SetRenderDrawColor( renderer_, 0, 0, 0, 255 );
 	std::cout << ".";
 
-	SDL_RenderClear( *renderer );
-	std::cout << ".";
-
-	SDL_RenderPresent( *renderer );
+    SDL_RenderClear( renderer_ );
 	std::cout << ".";
 
 	sdl_color_red_ = { 255, 0, 0, 0 };
@@ -523,6 +526,9 @@ Core::initSDL( const char* name, int szX, int szY, SDL_Renderer** renderer )
 	{
 		std::cerr << "Failed to load SDL Font! Error: " << TTF_GetError() << '\n';
 	}
+
+    SDL_RenderPresent( renderer_ );
+    std::cout << ".";
 
 	std::cout << "DONE" << std::endl;
 
@@ -637,7 +643,7 @@ Core::manageSDLKeyboard()
 void
 Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 {
-	//std::cout << "Packet received id : " << static_cast<int>( packetPtr->getPacketId() ) << std::endl;
+	std::cout << "Packet received id : " << static_cast<int>( packetPtr->getPacketId() ) << std::endl;
 
 	if( std::dynamic_pointer_cast<ApiStatusPacket>( packetPtr ) )
 	{
