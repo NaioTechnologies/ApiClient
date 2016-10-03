@@ -129,24 +129,28 @@ void Core::server_read_thread( )
 {
 	std::cout << "Starting server read thread !" << std::endl;
 
-	uint8_t receiveBuffer[4000000];
+	uint8_t receiveBuffer[ 4000000 ];
 
-	while( !stopServerReadThreadAsked_ ) {
+	while( !stopServerReadThreadAsked_ )
+	{
 		// any time : read incoming messages.
-		int readSize = (int) read(socket_desc_, receiveBuffer, 4000000);
+		int readSize = (int) read( socket_desc_, receiveBuffer, 4000000 );
 
-		std::cout << "readSize : " << readSize << std::endl;
+		//std::cout << "readSize : " << readSize << std::endl;
 
-		if (readSize > 0) {
+		if (readSize > 0)
+		{
 			bool packetHeaderDetected = false;
 
-			bool atLeastOnePacketReceived = naioCodec_.decode(receiveBuffer, static_cast<uint>( readSize ),
-															  packetHeaderDetected);
+			bool atLeastOnePacketReceived = naioCodec_.decode( receiveBuffer, static_cast<uint>( readSize ),
+															  packetHeaderDetected );
 
 			// manage received messages
-			if (atLeastOnePacketReceived == true) {
-				for (auto &&packetPtr : naioCodec_.currentBasePacketList) {
-					manageReceivedPacket(packetPtr);
+			if (atLeastOnePacketReceived == true)
+			{
+				for ( auto &&packetPtr : naioCodec_.currentBasePacketList )
+				{
+					manageReceivedPacket( packetPtr );
 				}
 
 				naioCodec_.currentBasePacketList.clear();
