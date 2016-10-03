@@ -130,7 +130,7 @@ void Core::stopServerReadThread( )
 // thread function
 void Core::server_read_thread( )
 {
-	std::cout << "Starting server read thread." << std::endl;
+	std::cout << "Starting server read thread !" << std::endl;
 
 	uint8_t receiveBuffer[4000000];
 
