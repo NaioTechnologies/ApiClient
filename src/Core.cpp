@@ -142,11 +142,10 @@ void Core::server_read_thread( )
 		{
 			bool packetHeaderDetected = false;
 
-			bool atLeastOnePacketReceived = naioCodec_.decode( receiveBuffer, static_cast<uint>( readSize ),
-															  packetHeaderDetected );
+			bool atLeastOnePacketReceived = naioCodec_.decode( receiveBuffer, static_cast<uint>( readSize ), packetHeaderDetected );
 
 			// manage received messages
-			if (atLeastOnePacketReceived == true)
+			if ( atLeastOnePacketReceived == true )
 			{
 				for ( auto &&packetPtr : naioCodec_.currentBasePacketList )
 				{
