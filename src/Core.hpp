@@ -29,6 +29,7 @@
 #include <HaOdoPacket.hpp>
 #include <ApiPostPacket.hpp>
 #include <ApiGpsPacket.hpp>
+#include <HaGpsPacket.hpp>
 
 #include "ApiCodec/Naio01Codec.hpp"
 #include "ApiCodec/ApiMotorsPacket.hpp"
@@ -58,13 +59,23 @@ public:
 	// ask stop core.
 	void stop( );
 
+	// ask stop core.
+	void stopServerReadThread( );
+
 	// wait for core end.
 	void joinMainThread();
+
+	// wait for core end.
+	void joinServerReadThread();
 
 private:
 
 	// thread function
 	void call_from_thread( );
+
+	// thread function
+	void server_read_thread( );
+
 
 	// graph function
 	SDL_Window *initSDL(const char* name, int szX, int szY );
@@ -90,6 +101,10 @@ private:
 	bool threadStarted_;
 	std::thread mainThread_;
 
+	bool stopServerReadThreadAsked_;
+	bool serverReadthreadStarted_;
+	std::thread serverReadThread_;
+
 	// socket part
 	std::string hostAdress_;
 	uint16_t hostPort_;
@@ -103,29 +118,26 @@ private:
 	Naio01Codec naioCodec_;
 	std::vector< BaseNaio01PacketPtr > sendPacketList_;
 	std::mutex motor_packet_access_;
-	ApiMotorsPacketPtr askedApiMotorsPacketPtr_;
+
 	HaMotorsPacketPtr askedHaMotorsPacketPtr_;
 
-	std::mutex api_lidar_packet_ptr_access;
-	ApiLidarPacketPtr api_lidar_packet_ptr_;
-
-	std::mutex ha_lidar_packet_ptr_access;
+	std::mutex ha_lidar_packet_ptr_access_;
 	HaLidarPacketPtr ha_lidar_packet_ptr_;
 
 	std::mutex ha_gyro_packet_ptr_access_;
 	HaGyroPacketPtr ha_gyro_packet_ptr_;
 
-	std::mutex ha_accel_packet_ptr_access;
+	std::mutex ha_accel_packet_ptr_access_;
 	HaAcceleroPacketPtr ha_accel_packet_ptr_;
 
 	std::mutex ha_odo_packet_ptr_access;
 	HaOdoPacketPtr ha_odo_packet_ptr_;
 
-	std::mutex api_post_packet_ptr_access;
+	std::mutex api_post_packet_ptr_access_;
 	ApiPostPacketPtr api_post_packet_ptr_;
 
-	std::mutex api_gps_packet_ptr_access;
-	ApiGpsPacketPtr api_gps_packet_ptr_;
+	std::mutex ha_gps_packet_ptr_access_;
+	HaGpsPacketPtr ha_gps_packet_ptr_;
 
 	// ia part
 	ControlType controlType_;
