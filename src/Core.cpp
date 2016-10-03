@@ -3,8 +3,6 @@
 #include <arpa/inet.h>
 #include <chrono>
 #include <unistd.h>
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
 #include <ApiCodec/ApiMotorsPacket.hpp>
 #include <ApiCodec/ApiStatusPacket.hpp>
 #include <ApiIhmDisplayPacket.hpp>
@@ -31,6 +29,9 @@ Core::Core( ) :
 		askedHaMotorsPacketPtr_{ nullptr },
 		api_lidar_packet_ptr_{ nullptr },
 		ha_lidar_packet_ptr_{ nullptr },
+		ha_odo_packet_ptr_{ nullptr },
+		api_post_packet_ptr_{nullptr },
+		api_gps_packet_ptr_{ nullptr },
 		controlType_{ ControlType::CONTROL_TYPE_MANUAL }
 {
 
@@ -118,14 +119,6 @@ void
 Core::call_from_thread( )
 {
 	uint8_t receiveBuffer[4000000];
-
-	SDL_Color white = { 255, 255, 255, 0 };
-	TTF_Font* font = TTF_OpenFont("mono.ttf", 12);
-
-	if (font == nullptr)
-	{
-		std::cerr << "Faild to load SDL Font! Error: " << TTF_GetError() << '\n';
-	}
 
 	std::cout << "Starting main thread." << std::endl;
 
@@ -273,25 +266,52 @@ Core::call_from_thread( )
 			snprintf(accel_buff, sizeof(accel_buff), "Accel : N/A ; N/A, N/A" );
 		}
 
-		SDL_Surface* surfaceMessageGyro = TTF_RenderText_Solid( font, gyro_buff, white );
-		SDL_Texture* messageGyro = SDL_CreateTextureFromSurface( renderer_, surfaceMessageGyro );
-		SDL_FreeSurface( surfaceMessageGyro );
-		SDL_Rect message_rect_gyro;
-		message_rect_gyro.x = 010;
-		message_rect_gyro.y = 410;
-		SDL_QueryTexture( messageGyro, NULL, NULL, &message_rect_gyro.w, &message_rect_gyro.h );
-		SDL_RenderCopy( renderer_, messageGyro, NULL, &message_rect_gyro );
-		SDL_DestroyTexture( messageGyro );
+		char odo_buff[100];
+		if( ha_odo_packet_ptr_ != nullptr )
+		{
+			snprintf(odo_buff, sizeof(odo_buff), "ODO -> RF : %d ; RR : %d ; RL : %d, FL : %d", ha_odo_packet_ptr_->fr, ha_odo_packet_ptr_->rr, ha_odo_packet_ptr_->rl, ha_odo_packet_ptr_->fl );
+		}
+		else
+		{
+			snprintf(odo_buff, sizeof(odo_buff), "ODO -> RF : N/A ; RR : N/A ; RL : N/A, FL : N/A" );
+		}
 
-		SDL_Surface* surfaceMessageAccel = TTF_RenderText_Solid( font, accel_buff, white );
-		SDL_Texture* messageAccel = SDL_CreateTextureFromSurface( renderer_, surfaceMessageAccel );
-		SDL_FreeSurface( surfaceMessageAccel );
-		SDL_Rect message_rect_accel;
-		message_rect_accel.x = 010;
-		message_rect_accel.y = 420;
-		SDL_QueryTexture( messageAccel, NULL, NULL, &message_rect_accel.w, &message_rect_accel.h );
-		SDL_RenderCopy( renderer_, messageAccel, NULL, &message_rect_accel );
-		SDL_DestroyTexture( messageAccel );
+		char gps1_buff[100];
+		char gps2_buff[100];
+		if( api_gps_packet_ptr_ != nullptr )
+		{
+			snprintf(gps1_buff, sizeof(gps1_buff), "GPS -> lat : %lf ; lon : %lf ; alt : %lf", api_gps_packet_ptr_->lat, api_gps_packet_ptr_->lon, api_gps_packet_ptr_->alt ) ;
+			snprintf(gps2_buff, sizeof(gps2_buff), "GPS -> nbsat : %d ; fixlvl : %d ; speed : %lf ; trackorientation : %lf ", api_gps_packet_ptr_->satUsed,api_gps_packet_ptr_->quality, api_gps_packet_ptr_->groundSpeed, api_gps_packet_ptr_->trackOrientation ) ;
+		}
+		else
+		{
+			snprintf(gps1_buff, sizeof(gps1_buff), "GPS -> lat : N/A ; lon : N/A ; alt : N/A" );
+			snprintf(gps2_buff, sizeof(gps2_buff), "GPS -> lnbsat : N/A ; fixlvl : N/A ; speed : N/A ; trackorientation : N/A" );
+		}
+
+		draw_text( gyro_buff, 10, 410 );
+		draw_text( accel_buff, 10, 420 );
+		draw_text( odo_buff, 10, 430 );
+		draw_text( gps1_buff, 10, 440 );
+		draw_text( gps2_buff, 10, 450 );
+
+		// ##############################################
+		ApiPostPacketPtr api_post_packet_ptr = nullptr;
+
+		api_post_packet_ptr_access.lock();
+		api_post_packet_ptr = api_post_packet_ptr_;
+		api_post_packet_ptr_access.unlock();
+
+		if( api_post_packet_ptr != nullptr )
+		{
+			for( int i = 0 ; i < api_post_packet_ptr->postList.size() ; i++ )
+			{
+				if( api_post_packet_ptr->postList[ i ].postType == ApiPostPacket::PostType::RED )
+				{
+					draw_red_post( api_post_packet_ptr->postList[ i ].x * 100.0, api_post_packet_ptr->postList[ i ].y * 100.0 );
+				}
+			}
+		}
 
 		// ##############################################
 
@@ -320,6 +340,20 @@ Core::call_from_thread( )
 	stopThreadAsked_ = false;
 
 	std::cout << "Stopping main thread." << std::endl;
+}
+
+// #################################################
+void Core::draw_text( char buffer[100], int x, int y )
+{
+	SDL_Surface* surfaceMessageAccel = TTF_RenderText_Solid( ttf_font_, buffer, sdl_color_white_ );
+	SDL_Texture* messageAccel = SDL_CreateTextureFromSurface( renderer_, surfaceMessageAccel );
+	SDL_FreeSurface( surfaceMessageAccel );
+	SDL_Rect message_rect_accel;
+	message_rect_accel.x = x;
+	message_rect_accel.y = y;
+	SDL_QueryTexture( messageAccel, NULL, NULL, &message_rect_accel.w, &message_rect_accel.h );
+	SDL_RenderCopy( renderer_, messageAccel, NULL, &message_rect_accel );
+	SDL_DestroyTexture( messageAccel );
 }
 
 // #################################################
@@ -353,6 +387,19 @@ void Core::draw_lidar( uint16_t lidar_distance_[271] )
 			SDL_RenderFillRect(renderer_, &lidar_pixel);
 		}
 	}
+}
+
+// #################################################
+void Core::draw_red_post( int x, int y )
+{
+	SDL_SetRenderDrawColor(renderer_, 255, 0, 0, 255);
+	SDL_Rect rp;
+	rp.w = 2;
+	rp.h = 2;
+	rp.y = 400 - x - 1;
+	rp.x = 400 - y - 1;
+
+	SDL_RenderFillRect(renderer_, &rp);
 }
 
 // #################################################
@@ -468,6 +515,15 @@ Core::initSDL( const char* name, int szX, int szY, SDL_Renderer** renderer )
 	SDL_RenderPresent( *renderer );
 	std::cout << ".";
 
+	sdl_color_red_ = { 255, 0, 0, 0 };
+	sdl_color_white_ = { 255, 255, 255, 0 };
+	ttf_font_ = TTF_OpenFont("mono.ttf", 12);
+
+	if (ttf_font_ == nullptr)
+	{
+		std::cerr << "Failed to load SDL Font! Error: " << TTF_GetError() << '\n';
+	}
+
 	std::cout << "DONE" << std::endl;
 
 	return screen;
@@ -570,7 +626,7 @@ Core::manageSDLKeyboard()
 	}
 
 	motor_packet_access_.lock();
-	askedApiMotorsPacketPtr_ = std::make_shared<ApiMotorsPacket>( left, right );
+	//askedApiMotorsPacketPtr_ = std::make_shared<ApiMotorsPacket>( left, right );
 	askedHaMotorsPacketPtr_ = std::make_shared<HaMotorsPacket>( left * 2, right * 2 );
 	motor_packet_access_.unlock();
 
@@ -581,15 +637,13 @@ Core::manageSDLKeyboard()
 void
 Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 {
-	std::cout << "Packet received id : " << static_cast<int>( packetPtr->getPacketId() ) << std::endl;
+	//std::cout << "Packet received id : " << static_cast<int>( packetPtr->getPacketId() ) << std::endl;
 
 	if( std::dynamic_pointer_cast<ApiStatusPacket>( packetPtr ) )
 	{
 		ApiStatusPacketPtr statusPacketPtr = std::dynamic_pointer_cast<ApiStatusPacket>( packetPtr );
-
 		//lastReceivedStatusPacketPtr_ = statusPacketPtr;
-
-		std::cout << "theta : " << statusPacketPtr->theta << std::endl;
+		//std::cout << "theta : " << statusPacketPtr->theta << std::endl;
 	}
 	else if( std::dynamic_pointer_cast<HaLidarPacket>( packetPtr )  )
 	{
@@ -601,8 +655,6 @@ Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 	}
 	else if( std::dynamic_pointer_cast<ApiLidarPacket>( packetPtr )  )
 	{
-		std::cout << "api lidar received." << std::endl;
-
 		ApiLidarPacketPtr apiLidarPacketPtr = std::dynamic_pointer_cast<ApiLidarPacket>( packetPtr );
 
 		api_lidar_packet_ptr_access.lock();
@@ -616,8 +668,6 @@ Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 		ha_gyro_packet_ptr_access_.lock();
 		ha_gyro_packet_ptr_ = haGyroPacketPtr;
 		ha_gyro_packet_ptr_access_.unlock();
-
-		//std::cout << "gyro : " << haGyroPacketPtr->x << " ; " << haGyroPacketPtr->y << " ; " << haGyroPacketPtr->z << std::endl;
 	}
 	else if( std::dynamic_pointer_cast<HaAcceleroPacket>( packetPtr )  )
 	{
@@ -626,8 +676,30 @@ Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 		ha_accel_packet_ptr_access.lock();
 		ha_accel_packet_ptr_ = haAcceleroPacketPtr;
 		ha_accel_packet_ptr_access.unlock();
+	}
+	else if( std::dynamic_pointer_cast<HaOdoPacket>( packetPtr )  )
+	{
+		HaOdoPacketPtr haOdoPacketPtr = std::dynamic_pointer_cast<HaOdoPacket>( packetPtr );
 
-		//std::cout << "accel : " << haAcceleroPacketPtr->x << " ; " << haAcceleroPacketPtr->y << " ; " << haAcceleroPacketPtr->z << std::endl;
+		ha_odo_packet_ptr_access.lock();
+		ha_odo_packet_ptr_ = haOdoPacketPtr;
+		ha_odo_packet_ptr_access.unlock();
+	}
+	else if( std::dynamic_pointer_cast<ApiPostPacket>( packetPtr )  )
+	{
+		ApiPostPacketPtr apiPostPacketPtr = std::dynamic_pointer_cast<ApiPostPacket>( packetPtr );
+
+		api_post_packet_ptr_access.lock();
+		api_post_packet_ptr_ = apiPostPacketPtr;
+		api_post_packet_ptr_access.unlock();
+	}
+	else if( std::dynamic_pointer_cast<ApiGpsPacket>( packetPtr )  )
+	{
+		ApiGpsPacketPtr apiGpsPacketPtr = std::dynamic_pointer_cast<ApiGpsPacket>( packetPtr );
+
+		api_gps_packet_ptr_access.lock();
+		api_gps_packet_ptr_ = apiGpsPacketPtr;
+		api_gps_packet_ptr_access.unlock();
 	}
 }
 

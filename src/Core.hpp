@@ -22,8 +22,13 @@
 #include <mutex>
 #include <SDL2/SDL_video.h>
 #include <SDL2/SDL_system.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include <HaLidarPacket.hpp>
 #include <ApiLidarPacket.hpp>
+#include <HaOdoPacket.hpp>
+#include <ApiPostPacket.hpp>
+#include <ApiGpsPacket.hpp>
 
 #include "ApiCodec/Naio01Codec.hpp"
 #include "ApiCodec/ApiMotorsPacket.hpp"
@@ -74,6 +79,8 @@ private:
 	void manageReceivedPacket( BaseNaio01PacketPtr packetPtr );
 	void draw_robot();
 	void draw_lidar( uint16_t lidar_distance_[271] );
+	void draw_text( char gyro_buff[100], int x, int y );
+	void draw_red_post( int x, int y );
 
 public:
 
@@ -111,11 +118,24 @@ private:
 	std::mutex ha_accel_packet_ptr_access;
 	HaAcceleroPacketPtr ha_accel_packet_ptr_;
 
+	std::mutex ha_odo_packet_ptr_access;
+	HaOdoPacketPtr ha_odo_packet_ptr_;
+
+	std::mutex api_post_packet_ptr_access;
+	ApiPostPacketPtr api_post_packet_ptr_;
+
+	std::mutex api_gps_packet_ptr_access;
+	ApiGpsPacketPtr api_gps_packet_ptr_;
+
 	// ia part
 	ControlType controlType_;
 
 	SDL_Window* screen_;
 	SDL_Renderer* renderer_;
+
+	SDL_Color sdl_color_red_;
+	SDL_Color sdl_color_white_;
+	TTF_Font* ttf_font_;
 };
 
 #endif
