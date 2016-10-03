@@ -54,9 +54,6 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 	threadStarted_ = false;
 	socketConnected_ = false;
 
-	// create graphics
-	screen_ = initSDL("Api Client", 800, 480, &renderer_);
-
 	// ignore unused screen
 	(void)screen_;
 
@@ -166,6 +163,9 @@ void
 Core::call_from_thread( )
 {
 	std::cout << "Starting main thread." << std::endl;
+
+    // create graphics
+    screen_ = initSDL( "Api Client", 800, 480 );
 
 	// prepare timers for real time operations
 	milliseconds ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
@@ -519,7 +519,7 @@ Core::sendWaitingPackets()
 // #################################################
 
 SDL_Window*
-Core::initSDL( const char* name, int szX, int szY, SDL_Renderer** renderer )
+Core::initSDL( const char* name, int szX, int szY )
 {
 	std::cout << "Init SDL";
 
@@ -532,21 +532,21 @@ Core::initSDL( const char* name, int szX, int szY, SDL_Renderer** renderer )
 	screen = SDL_CreateWindow( name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, szX, szY, SDL_WINDOW_SHOWN );
 	std::cout << ".";
 
-	*renderer =  SDL_CreateRenderer( screen, 0, SDL_RENDERER_ACCELERATED );
+	renderer_ =  SDL_CreateRenderer( screen, 0, SDL_RENDERER_ACCELERATED );
 	std::cout << ".";
 
 	TTF_Init();
 	std::cout << ".";
 
 	// Set render color to black ( background will be rendered in this color )
-	SDL_SetRenderDrawColor( *renderer, 0, 0, 0, 255 );
+	SDL_SetRenderDrawColor( renderer_, 0, 0, 0, 255 );
 	std::cout << ".";
 
-	SDL_RenderClear( *renderer );
+	SDL_RenderClear( renderer_ );
 	std::cout << ".";
 
-	SDL_RenderPresent( *renderer );
-	std::cout << ".";
+//	SDL_RenderPresent( renderer_ );
+//	std::cout << ".";
 
 	sdl_color_red_ = { 255, 0, 0, 0 };
 	sdl_color_white_ = { 255, 255, 255, 0 };
