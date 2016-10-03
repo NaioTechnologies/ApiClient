@@ -270,6 +270,8 @@ Core::call_from_thread( )
 		{
 			snprintf(gyro_buff, sizeof(gyro_buff), "Gyro  : %d ; %d, %d", ha_gyro_packet_ptr->x, ha_gyro_packet_ptr->y,
 					 ha_gyro_packet_ptr->z);
+
+			std::cout << gyro_buff << std::endl;
 		}
 		else
 		{
@@ -285,6 +287,8 @@ Core::call_from_thread( )
 		{
 			snprintf(accel_buff, sizeof(accel_buff), "Accel : %d ; %d, %d", ha_accel_packet_ptr->x,
 					 ha_accel_packet_ptr->y, ha_accel_packet_ptr->z);
+
+			std::cout << accel_buff << std::endl;
 		}
 		else
 		{
@@ -299,6 +303,9 @@ Core::call_from_thread( )
 		if( ha_odo_packet_ptr != nullptr )
 		{
 			snprintf(odo_buff, sizeof(odo_buff), "ODO -> RF : %d ; RR : %d ; RL : %d, FL : %d", ha_odo_packet_ptr->fr, ha_odo_packet_ptr->rr, ha_odo_packet_ptr->rl, ha_odo_packet_ptr->fl );
+
+			std::cout << odo_buff << std::endl;
+
 		}
 		else
 		{
@@ -669,7 +676,7 @@ Core::manageSDLKeyboard()
 void
 Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 {
-	std::cout << "Packet received id : " << static_cast<int>( packetPtr->getPacketId() ) << std::endl;
+	//std::cout << "Packet received id : " << static_cast<int>( packetPtr->getPacketId() ) << std::endl;
 
 	if( std::dynamic_pointer_cast<HaLidarPacket>( packetPtr )  )
 	{
