@@ -416,7 +416,7 @@ void Core::draw_lidar( uint16_t lidar_distance_[271] )
 			double x_cos = dist * cos(  static_cast<double>( ( i - 45 ) * M_PI / 180. ) );
 			double y_sin = dist * sin(  static_cast<double>( ( i - 45 ) * M_PI / 180. ) );
 
-			double x = 400.0 + x_cos;
+			double x = 400.0 - x_cos;
 			double y = 400.0 - y_sin;
 
 			SDL_SetRenderDrawColor(renderer_, 255, 255, 255, 255);
@@ -527,7 +527,6 @@ Core::sendWaitingPackets()
 }
 
 // #################################################
-
 SDL_Window*
 Core::initSDL( const char* name, int szX, int szY )
 {
