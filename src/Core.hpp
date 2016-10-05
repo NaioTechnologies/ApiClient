@@ -30,6 +30,7 @@
 #include <ApiPostPacket.hpp>
 #include <ApiGpsPacket.hpp>
 #include <HaGpsPacket.hpp>
+#include <ApiStereoCameraPacket.hpp>
 
 #include "ApiCodec/Naio01Codec.hpp"
 #include "ApiCodec/ApiMotorsPacket.hpp"
@@ -92,7 +93,7 @@ private:
 	void draw_lidar( uint16_t lidar_distance_[271] );
 	void draw_text( char gyro_buff[100], int x, int y );
 	void draw_red_post( int x, int y );
-
+	void draw_images( );
 public:
 
 private:
@@ -139,6 +140,10 @@ private:
 	std::mutex ha_gps_packet_ptr_access_;
 	HaGpsPacketPtr ha_gps_packet_ptr_;
 
+	std::mutex api_stereo_camera_packet_ptr_access_;
+	ApiStereoCameraPacketPtr api_stereo_camera_packet_ptr_;
+	uint8_t last_images_buffer_[ 1000000 ];
+
 	// ia part
 	ControlType controlType_;
 
@@ -148,6 +153,9 @@ private:
 	SDL_Color sdl_color_red_;
 	SDL_Color sdl_color_white_;
 	TTF_Font* ttf_font_;
+
+	bool asked_start_video_;
+	bool asked_stop_video_;
 };
 
 #endif

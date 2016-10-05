@@ -8,6 +8,7 @@
 #include <ApiIhmDisplayPacket.hpp>
 #include <HaGyroPacket.hpp>
 #include <HaAcceleroPacket.hpp>
+#include <ApiCommandPacket.hpp>
 
 #include "Core.hpp"
 
@@ -32,7 +33,19 @@ Core::Core( ) :
 		ha_gps_packet_ptr_{ nullptr },
 		controlType_{ ControlType::CONTROL_TYPE_MANUAL }
 {
+	uint8_t fake = 0;
 
+	for ( int i = 0 ; i < 1000000 ; i++ )
+	{
+		if( fake >= 255 )
+		{
+			fake = 0;
+		}
+
+		last_images_buffer_[ i ] = fake;
+
+		fake++;
+	}
 }
 
 // #################################################
@@ -168,7 +181,7 @@ Core::call_from_thread( )
 	std::cout << "Starting main thread." << std::endl;
 
     // create graphics
-    screen_ = initSDL( "Api Client", 800, 480 );
+    screen_ = initSDL( "Api Client", 800, 720 );
 
 	// prepare timers for real time operations
 	milliseconds ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
@@ -197,6 +210,28 @@ Core::call_from_thread( )
 			readSDLKeyboard();
 
 			manageSDLKeyboard();
+
+			if( asked_start_video_ == true )
+			{
+				ApiCommandPacketPtr api_command_packet_zlib_off = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_OFF_IMAGE_ZLIB_COMPRESSION );
+				ApiCommandPacketPtr api_command_packet_stereo_on = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_ON_API_RECTIFIED_STEREO_CAMERA_PACKET );
+
+				sendPacketList_.emplace_back( api_command_packet_zlib_off );
+
+				sendPacketList_.emplace_back( api_command_packet_stereo_on );
+
+				asked_start_video_ = false;
+			}
+
+			if( asked_stop_video_ == true )
+			{
+				ApiCommandPacketPtr api_command_packet_stereo_off = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_OFF_API_RECTIFIED_STEREO_CAMERA_PACKET );
+
+				sendPacketList_.emplace_back( api_command_packet_stereo_off );
+
+				asked_stop_video_ = false;
+			}
+
 
 			if( controlType_ == ControlType::CONTROL_TYPE_MANUAL )
 			{
@@ -261,6 +296,30 @@ Core::call_from_thread( )
 		ha_lidar_packet_ptr_access_.unlock();
 
 		draw_lidar( lidar_distance_ );
+
+		ApiStereoCameraPacketPtr api_stereo_camera_packet_ptr = nullptr;
+
+		api_stereo_camera_packet_ptr_access_.lock();
+
+		if( api_stereo_camera_packet_ptr_ != nullptr and api_stereo_camera_packet_ptr_->imageType == ApiStereoCameraPacket::ImageType::RECTIFIED_COLORIZED_IMAGES )
+		{
+			api_stereo_camera_packet_ptr = api_stereo_camera_packet_ptr_;
+			api_stereo_camera_packet_ptr_ = nullptr;
+		}
+
+		api_stereo_camera_packet_ptr_access_.unlock();
+
+		if( api_stereo_camera_packet_ptr != nullptr )
+		{
+			cl_copy::BufferUPtr bufferUPtr = std::move( api_stereo_camera_packet_ptr->dataBuffer );
+
+			for( uint i = 0 ; i < bufferUPtr->size() ; i++ )
+			{
+				last_images_buffer_[ i ] = bufferUPtr->at( i );
+			}
+		}
+
+		draw_images( );
 
 		// ##############################################
 		char gyro_buff[100];
@@ -504,6 +563,46 @@ void Core::draw_robot()
 }
 
 // #################################################
+void Core::draw_images( )
+{
+	// 8bpp
+	//		Uint32 rmask = 0xff;
+	//		Uint32 gmask = 0xff;
+	//		Uint32 bmask = 0xff;
+	//		Uint32 amask = 0;
+
+	//last_images_buffer_
+
+	#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+		Uint32 rmask = 0xff000000;
+		Uint32 gmask = 0x00ff0000;
+		Uint32 bmask = 0x0000ff00;
+		Uint32 amask = 0x000000ff;
+	#else
+		Uint32 rmask = 0x000000ff;
+		Uint32 gmask = 0x0000ff00;
+		Uint32 bmask = 0x00ff0000;
+		Uint32 amask = 0xff000000;
+	#endif
+
+	SDL_Surface* left_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_, 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
+
+	SDL_Surface* right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + 270720 + 1, 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
+
+	SDL_Rect left_rect = { 400 - 376 - 10, 480, 376, 240 };
+
+	SDL_Rect right_rect = { 400 + 10, 480, 376, 240 };
+
+	SDL_Texture * left_texture = SDL_CreateTextureFromSurface( renderer_, left_image );
+
+	SDL_Texture * right_texture = SDL_CreateTextureFromSurface( renderer_, right_image );
+
+	SDL_RenderCopy( renderer_, left_texture, NULL, &left_rect );
+
+	SDL_RenderCopy( renderer_, right_texture, NULL, &right_rect );
+}
+
+// #################################################
 bool
 Core::sendWaitingPackets()
 {
@@ -617,6 +716,16 @@ Core::manageSDLKeyboard()
 		return true;
 	}
 
+	if( sdlKey_[ SDL_SCANCODE_O ] == 1 )
+	{
+		asked_start_video_ = true;
+	}
+
+	if( sdlKey_[ SDL_SCANCODE_F ] == 1 )
+	{
+		asked_stop_video_ = true;
+	}
+
 	if( sdlKey_[ SDL_SCANCODE_UP ] == 1 and sdlKey_[ SDL_SCANCODE_LEFT ] == 1 )
 	{
 		left = 32;
@@ -728,6 +837,15 @@ Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 		ha_gps_packet_ptr_ = haGpsPacketPtr;
 		ha_gps_packet_ptr_access_.unlock();
 	}
+	else if( std::dynamic_pointer_cast<ApiStereoCameraPacket>( packetPtr )  )
+	{
+		ApiStereoCameraPacketPtr api_stereo_camera_packet_ptr = std::dynamic_pointer_cast<ApiStereoCameraPacket>( packetPtr );
+
+		api_stereo_camera_packet_ptr_access_.lock();
+		api_stereo_camera_packet_ptr_ = api_stereo_camera_packet_ptr;
+		api_stereo_camera_packet_ptr_access_.unlock();
+	}
+
 }
 
 // #################################################
