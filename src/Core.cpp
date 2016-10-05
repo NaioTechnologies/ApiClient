@@ -181,7 +181,7 @@ Core::call_from_thread( )
 	std::cout << "Starting main thread." << std::endl;
 
     // create graphics
-    screen_ = initSDL( "Api Client", 800, 720 );
+    screen_ = initSDL( "Api Client", 800, 730 );
 
 	// prepare timers for real time operations
 	milliseconds ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
@@ -589,9 +589,9 @@ void Core::draw_images( )
 
 	SDL_Surface* right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + 270720 + 1, 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
 
-	SDL_Rect left_rect = { 400 - 376 - 10, 480, 376, 240 };
+	SDL_Rect left_rect = { 400 - 376 - 10, 485, 376, 240 };
 
-	SDL_Rect right_rect = { 400 + 10, 480, 376, 240 };
+	SDL_Rect right_rect = { 400 + 10, 485, 376, 240 };
 
 	SDL_Texture * left_texture = SDL_CreateTextureFromSurface( renderer_, left_image );
 
