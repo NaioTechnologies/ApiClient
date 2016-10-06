@@ -599,7 +599,7 @@ void Core::draw_images( )
 
 		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + ( 752 * 480 ) + 1, 752, 480, 1 * 8, 752, rmask, gmask, bmask, amask );
 	}
-	else if( last_image_type_ == ApiStereoCameraPacket::ImageType::RECTIFIED_COLORIZED_IMAGES or last_image_type_ == ApiStereoCameraPacket::ImageType::RECTIFIED_COLORIZED_IMAGES_ZLIB )
+	else // if( last_image_type_ == ApiStereoCameraPacket::ImageType::RECTIFIED_COLORIZED_IMAGES or last_image_type_ == ApiStereoCameraPacket::ImageType::RECTIFIED_COLORIZED_IMAGES_ZLIB )
 	{
 		#if SDL_BYTEORDER == SDL_BIG_ENDIAN
 				Uint32 rmask = 0xff000000;
