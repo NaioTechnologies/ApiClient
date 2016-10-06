@@ -77,6 +77,8 @@ private:
 	// thread function
 	void server_read_thread( );
 
+	// thread function
+	void image_preparer_thread( );
 
 	// graph function
 	SDL_Window *initSDL(const char* name, int szX, int szY );
@@ -157,6 +159,10 @@ private:
 
 	bool asked_start_video_;
 	bool asked_stop_video_;
+
+	std::thread image_prepared_thread_;
+
+	uint64_t last_motor_time_;
 };
 
 #endif

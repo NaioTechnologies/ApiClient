@@ -10,7 +10,6 @@
 #include <HaAcceleroPacket.hpp>
 #include <ApiCommandPacket.hpp>
 #include <zlib.h>
-
 #include "Core.hpp"
 
 using namespace std;
@@ -32,7 +31,8 @@ Core::Core( ) :
 		ha_odo_packet_ptr_{ nullptr },
 		api_post_packet_ptr_{nullptr },
 		ha_gps_packet_ptr_{ nullptr },
-		controlType_{ ControlType::CONTROL_TYPE_MANUAL }
+		controlType_{ ControlType::CONTROL_TYPE_MANUAL },
+		last_motor_time_{ 0L }
 {
 	uint8_t fake = 0;
 
@@ -106,8 +106,9 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 	// creates main thread
 	mainThread_ = std::thread( &Core::call_from_thread, this );
 
-	// creates main thread
 	serverReadThread_ = std::thread( &Core::server_read_thread, this );
+
+	image_prepared_thread_ = std::thread( &Core::image_preparer_thread, this );
 }
 
 // #################################################
@@ -178,7 +179,6 @@ void
 Core::call_from_thread( )
 {
 	std::cout << "Starting main thread." << std::endl;
-	Bytef zlibUncompressedBytes[ 4000000l ];
 
     // create graphics
     screen_ = initSDL( "Api Client", 800, 730 );
@@ -233,14 +233,15 @@ Core::call_from_thread( )
 
 			if( controlType_ == ControlType::CONTROL_TYPE_MANUAL )
 			{
-				if( askedHaMotorsPacketPtr_ == nullptr )
-				{
-					// if no input given, waits a bit more.
-					std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 250 ) ) );
-				}
-				else
+				uint64_t now = static_cast<uint64_t>( std::chrono::duration_cast< std::chrono::milliseconds >( std::chrono::system_clock::now().time_since_epoch() ).count() );
+
+				uint64_t time_diff = now - last_motor_time_;
+
+				if( askedHaMotorsPacketPtr_ != nullptr and  time_diff >= 25 )
 				{
 					sendPacketList_.emplace_back( askedHaMotorsPacketPtr_ );
+
+					last_motor_time_ = static_cast<uint64_t>( std::chrono::duration_cast< std::chrono::milliseconds >( std::chrono::system_clock::now().time_since_epoch() ).count() );
 				}
 			}
 		}
@@ -294,84 +295,6 @@ Core::call_from_thread( )
 		ha_lidar_packet_ptr_access_.unlock();
 
 		draw_lidar( lidar_distance_ );
-
-		ApiStereoCameraPacketPtr api_stereo_camera_packet_ptr = nullptr;
-
-		api_stereo_camera_packet_ptr_access_.lock();
-
-		if( api_stereo_camera_packet_ptr_ != nullptr )
-		{
-			std::cout << "api_stereo_camera_packet_ptr received " << std::endl;
-
-			last_image_type_ = api_stereo_camera_packet_ptr_->imageType;
-
-			api_stereo_camera_packet_ptr = api_stereo_camera_packet_ptr_;
-
-			api_stereo_camera_packet_ptr_ = nullptr;
-		}
-
-		api_stereo_camera_packet_ptr_access_.unlock();
-
-		if( api_stereo_camera_packet_ptr != nullptr )
-		{
-			cl_copy::BufferUPtr bufferUPtr = std::move( api_stereo_camera_packet_ptr->dataBuffer );
-
-			std::cout << "api_stereo_camera_packet_ptr " << std::endl;
-
-			if( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB  or last_image_type_ == ApiStereoCameraPacket::ImageType::RECTIFIED_COLORIZED_IMAGES_ZLIB )
-			{
-				std::cout << "api_stereo_camera_packet_ptr zlib " << std::endl;
-
-
-				uLong sizeDataUncompressed = 0l;
-
-				uncompress( (Bytef*)zlibUncompressedBytes, &sizeDataUncompressed, bufferUPtr->data(), static_cast<uLong>( bufferUPtr->size() ) );
-
-				if( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB )
-				{
-					std::cout << "RAW_IMAGES_ZLIB : " << sizeDataUncompressed << std::endl;
-
-					// don't know how to display 8bits image with sdl...
-					for( uint i = 0 ; i < sizeDataUncompressed ; i++ )
-					{
-						last_images_buffer_[ ( i * 3 ) + 0 ] = zlibUncompressedBytes[ i ];
-						last_images_buffer_[ ( i * 3 ) + 1 ] = zlibUncompressedBytes[ i ];
-						last_images_buffer_[ ( i * 3 ) + 2 ] = zlibUncompressedBytes[ i ];
-					}
-				}
-				else
-				{
-					std::cout << "COLORED_IMAGES_ZLIB : " << sizeDataUncompressed << std::endl;
-
-					for( uint i = 0 ; i < sizeDataUncompressed ; i++ )
-					{
-						last_images_buffer_[ i ] = zlibUncompressedBytes[ i ];
-					}
-				}
-			}
-			else
-			{
-				std::cout << "api_stereo_camera_packet_ptr non zlib " << std::endl;
-
-				if( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES )
-				{
-					// don't know how to display 8bits image with sdl...
-					for( uint i = 0 ; i < bufferUPtr->size() ; i++ )
-					{
-						last_images_buffer_[ ( i * 3 ) + 0 ] = bufferUPtr->at( i );
-						last_images_buffer_[ ( i * 3 ) + 1 ] = bufferUPtr->at( i );
-						last_images_buffer_[ ( i * 3 ) + 2 ] = bufferUPtr->at( i );
-					}
-				}
-				else
-				{
-					for (uint i = 0; i < bufferUPtr->size(); i++)
-					{
-						last_images_buffer_[i] = bufferUPtr->at( i );
-					}
-				}
-			}
-		}
 
 		draw_images( );
 
@@ -638,12 +561,12 @@ void Core::draw_images( )
 	if( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES or last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB )
 	{
 		left_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_, 752, 480, 3 * 8, 752 * 3, rmask, gmask, bmask, amask );
-		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + ( 752 * 480 * 3 ) + 0, 752, 480, 3 * 8, 752 * 3, rmask, gmask, bmask, amask );
+		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + ( 752 * 480 * 3 ), 752, 480, 3 * 8, 752 * 3, rmask, gmask, bmask, amask );
 	}
 	else
 	{
 		left_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_, 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
-		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + ( 376 * 240 * 3 ) + 0, 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
+		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + ( 376 * 240 * 3 ), 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
 	}
 
 	//std::cout << "display image " << std::endl;
@@ -846,7 +769,7 @@ Core::manageSDLKeyboard()
 void
 Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 {
-	//std::cout << "Packet received id : " << static_cast<int>( packetPtr->getPacketId() ) << std::endl;
+	std::cout << "Packet received id : " << static_cast<int>( packetPtr->getPacketId() ) << std::endl;
 
 	if( std::dynamic_pointer_cast<HaLidarPacket>( packetPtr )  )
 	{
@@ -918,4 +841,81 @@ Core::joinMainThread()
 void Core::joinServerReadThread()
 {
 	serverReadThread_.join();
+}
+
+// #################################################
+void Core::image_preparer_thread( )
+{
+	Bytef zlibUncompressedBytes[ 4000000l ];
+
+	while ( true )
+	{
+		std::this_thread::sleep_for( std::chrono::milliseconds(static_cast<int64_t>( 100 ) ) );
+
+		ApiStereoCameraPacketPtr api_stereo_camera_packet_ptr = nullptr;
+
+		api_stereo_camera_packet_ptr_access_.lock();
+
+		if ( api_stereo_camera_packet_ptr_ != nullptr )
+		{
+			last_image_type_ = api_stereo_camera_packet_ptr_->imageType;
+
+			api_stereo_camera_packet_ptr = api_stereo_camera_packet_ptr_;
+
+			api_stereo_camera_packet_ptr_ = nullptr;
+		}
+
+		api_stereo_camera_packet_ptr_access_.unlock();
+
+		if ( api_stereo_camera_packet_ptr != nullptr )
+		{
+			cl_copy::BufferUPtr bufferUPtr = std::move( api_stereo_camera_packet_ptr->dataBuffer );
+
+			if ( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB or
+				 last_image_type_ == ApiStereoCameraPacket::ImageType::RECTIFIED_COLORIZED_IMAGES_ZLIB )
+			{
+				uLong sizeDataUncompressed = 0l;
+
+				uncompress( (Bytef *) zlibUncompressedBytes, &sizeDataUncompressed, bufferUPtr->data(),
+						   static_cast<uLong>( bufferUPtr->size() ) );
+
+				if ( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB )
+				{
+					// don't know how to display 8bits image with sdl...
+					for (uint i = 0; i < sizeDataUncompressed; i++) {
+						last_images_buffer_[ (i * 3) + 0 ] = zlibUncompressedBytes[i];
+						last_images_buffer_[ (i * 3) + 1 ] = zlibUncompressedBytes[i];
+						last_images_buffer_[ (i * 3) + 2 ] = zlibUncompressedBytes[i];
+					}
+				}
+				else
+				{
+					for ( uint i = 0; i < sizeDataUncompressed; i++ )
+					{
+						last_images_buffer_[ i ] = zlibUncompressedBytes[i];
+					}
+				}
+			}
+			else
+			{
+				if (last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES)
+				{
+					// don't know how to display 8bits image with sdl...
+					for (uint i = 0; i < bufferUPtr->size(); i++)
+					{
+						last_images_buffer_[ ( i * 3 ) + 0 ] = bufferUPtr->at( i );
+						last_images_buffer_[ ( i * 3 ) + 1 ] = bufferUPtr->at( i );
+						last_images_buffer_[ ( i * 3 ) + 2 ] = bufferUPtr->at( i );
+					}
+				}
+				else
+				{
+					for ( uint i = 0; i < bufferUPtr->size(); i++ )
+					{
+						last_images_buffer_[ i ] = bufferUPtr->at( i );
+					}
+				}
+			}
+		}
+	}
 }
