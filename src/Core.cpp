@@ -22,7 +22,7 @@ Core::Core( ) :
 		stopThreadAsked_{ false },
 		threadStarted_{ false },
 		mainThread_{ },
-		hostAdress_{ "127.0.0.1" },
+		hostAdress_{ "10.0.1.1" },
 		hostPort_{ 5555 },
 		socketConnected_{false},
 		naioCodec_{ },
@@ -212,7 +212,7 @@ Core::call_from_thread( )
 
 			if( asked_start_video_ == true )
 			{
-				ApiCommandPacketPtr api_command_packet_zlib_off = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_ON_IMAGE_ZLIB_COMPRESSION );
+				ApiCommandPacketPtr api_command_packet_zlib_off = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_OFF_IMAGE_ZLIB_COMPRESSION );
 				ApiCommandPacketPtr api_command_packet_stereo_on = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_ON_API_RAW_STEREO_CAMERA_PACKET );
 
 				sendPacketList_.emplace_back( api_command_packet_zlib_off );
@@ -320,8 +320,8 @@ Core::call_from_thread( )
 			{
 				std::cout << "api_stereo_camera_packet_ptr zlib " << std::endl;
 
-				Bytef zlibUncompressedBytes[ 1500000 ];
-				uLong sizeDataUncompressed = 1500000l;
+				Bytef zlibUncompressedBytes[ 4000000l ];
+				uLong sizeDataUncompressed = 0l;
 
 				uncompress( (Bytef*)zlibUncompressedBytes, &sizeDataUncompressed, bufferUPtr->data(), static_cast<uLong>( bufferUPtr->size() ) );
 
