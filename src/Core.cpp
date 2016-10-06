@@ -215,7 +215,7 @@ Core::call_from_thread( )
 			if( asked_start_video_ == true )
 			{
 				ApiCommandPacketPtr api_command_packet_zlib_off = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_OFF_IMAGE_ZLIB_COMPRESSION );
-				ApiCommandPacketPtr api_command_packet_stereo_on = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_ON_API_RECTIFIED_STEREO_CAMERA_PACKET );
+				ApiCommandPacketPtr api_command_packet_stereo_on = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_ON_API_RAW_STEREO_CAMERA_PACKET );
 
 				sendPacketList_.emplace_back( api_command_packet_zlib_off );
 
@@ -226,7 +226,7 @@ Core::call_from_thread( )
 
 			if( asked_stop_video_ == true )
 			{
-				ApiCommandPacketPtr api_command_packet_stereo_off = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_OFF_API_RECTIFIED_STEREO_CAMERA_PACKET );
+				ApiCommandPacketPtr api_command_packet_stereo_off = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_OFF_API_RAW_STEREO_CAMERA_PACKET );
 
 				sendPacketList_.emplace_back( api_command_packet_stereo_off );
 
