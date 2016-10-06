@@ -143,6 +143,7 @@ private:
 	std::mutex api_stereo_camera_packet_ptr_access_;
 	ApiStereoCameraPacketPtr api_stereo_camera_packet_ptr_;
 	uint8_t last_images_buffer_[ 1000000 ];
+	ApiStereoCameraPacket::ImageType last_image_type_;
 
 	// ia part
 	ControlType controlType_;

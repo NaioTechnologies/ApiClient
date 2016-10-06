@@ -9,6 +9,7 @@
 #include <HaGyroPacket.hpp>
 #include <HaAcceleroPacket.hpp>
 #include <ApiCommandPacket.hpp>
+#include <zlib.h>
 
 #include "Core.hpp"
 
@@ -301,9 +302,12 @@ Core::call_from_thread( )
 
 		api_stereo_camera_packet_ptr_access_.lock();
 
-		if( api_stereo_camera_packet_ptr_ != nullptr and api_stereo_camera_packet_ptr_->imageType == ApiStereoCameraPacket::ImageType::RECTIFIED_COLORIZED_IMAGES )
+		if( api_stereo_camera_packet_ptr_ != nullptr and ( api_stereo_camera_packet_ptr_->imageType == ApiStereoCameraPacket::ImageType::RECTIFIED_COLORIZED_IMAGES or api_stereo_camera_packet_ptr_->imageType == ApiStereoCameraPacket::ImageType::RAW_IMAGES or api_stereo_camera_packet_ptr_->imageType == ApiStereoCameraPacket::ImageType::RECTIFIED_COLORIZED_IMAGES_ZLIB or api_stereo_camera_packet_ptr_->imageType == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB ) )
 		{
+			last_image_type_ = api_stereo_camera_packet_ptr_->imageType;
+
 			api_stereo_camera_packet_ptr = api_stereo_camera_packet_ptr_;
+
 			api_stereo_camera_packet_ptr_ = nullptr;
 		}
 
@@ -313,9 +317,24 @@ Core::call_from_thread( )
 		{
 			cl_copy::BufferUPtr bufferUPtr = std::move( api_stereo_camera_packet_ptr->dataBuffer );
 
-			for( uint i = 0 ; i < bufferUPtr->size() ; i++ )
+			if( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB  or last_image_type_ == ApiStereoCameraPacket::ImageType::RECTIFIED_COLORIZED_IMAGES_ZLIB )
 			{
-				last_images_buffer_[ i ] = bufferUPtr->at( i );
+				Bytef zlibUncompressedBytes[4000000];
+				ulong sizeDataUncompressed = 4000000l;
+
+				uncompress( zlibUncompressedBytes, &sizeDataUncompressed, bufferUPtr->data(), bufferUPtr->size() );
+
+				for( uint i = 0; i < sizeDataUncompressed; i++ )
+				{
+					last_images_buffer_[ i ] = zlibUncompressedBytes[ i ];
+				}
+			}
+			else
+			{
+				for( uint i = 0 ; i < bufferUPtr->size() ; i++ )
+				{
+					last_images_buffer_[ i ] = bufferUPtr->at( i );
+				}
 			}
 		}
 
@@ -565,29 +584,39 @@ void Core::draw_robot()
 // #################################################
 void Core::draw_images( )
 {
-	// 8bpp
-	//		Uint32 rmask = 0xff;
-	//		Uint32 gmask = 0xff;
-	//		Uint32 bmask = 0xff;
-	//		Uint32 amask = 0;
+	SDL_Surface* left_image;
 
-	//last_images_buffer_
+	SDL_Surface* right_image;
 
-	#if SDL_BYTEORDER == SDL_BIG_ENDIAN
-		Uint32 rmask = 0xff000000;
-		Uint32 gmask = 0x00ff0000;
-		Uint32 bmask = 0x0000ff00;
-		Uint32 amask = 0x000000ff;
-	#else
-		Uint32 rmask = 0x000000ff;
-		Uint32 gmask = 0x0000ff00;
-		Uint32 bmask = 0x00ff0000;
-		Uint32 amask = 0xff000000;
-	#endif
+	if( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES or last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB )
+	{
+		Uint32 rmask = 0xff;
+		Uint32 gmask = 0xff;
+		Uint32 bmask = 0xff;
+		Uint32 amask = 0;
 
-	SDL_Surface* left_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_, 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
+		left_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_, 752, 480, 1 * 8, 752, rmask, gmask, bmask, amask );
 
-	SDL_Surface* right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + 270720 + 1, 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
+		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + ( 752 * 480 ) + 1, 752, 480, 1 * 8, 752, rmask, gmask, bmask, amask );
+	}
+	else if( last_image_type_ == ApiStereoCameraPacket::ImageType::RECTIFIED_COLORIZED_IMAGES or last_image_type_ == ApiStereoCameraPacket::ImageType::RECTIFIED_COLORIZED_IMAGES_ZLIB )
+	{
+		#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+				Uint32 rmask = 0xff000000;
+				Uint32 gmask = 0x00ff0000;
+				Uint32 bmask = 0x0000ff00;
+				Uint32 amask = 0x000000ff;
+		#else
+				Uint32 rmask = 0x000000ff;
+				Uint32 gmask = 0x0000ff00;
+				Uint32 bmask = 0x00ff0000;
+				Uint32 amask = 0xff000000;
+		#endif
+
+		left_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_, 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
+
+		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + 270720 + 1, 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
+	}
 
 	SDL_Rect left_rect = { 400 - 376 - 10, 485, 376, 240 };
 
