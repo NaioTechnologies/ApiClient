@@ -178,6 +178,7 @@ void
 Core::call_from_thread( )
 {
 	std::cout << "Starting main thread." << std::endl;
+	Bytef zlibUncompressedBytes[ 4000000l ];
 
     // create graphics
     screen_ = initSDL( "Api Client", 800, 730 );
@@ -321,7 +322,7 @@ Core::call_from_thread( )
 			{
 				std::cout << "api_stereo_camera_packet_ptr zlib " << std::endl;
 
-				Bytef zlibUncompressedBytes[ 4000000l ];
+
 				uLong sizeDataUncompressed = 0l;
 
 				uncompress( (Bytef*)zlibUncompressedBytes, &sizeDataUncompressed, bufferUPtr->data(), static_cast<uLong>( bufferUPtr->size() ) );
@@ -637,12 +638,12 @@ void Core::draw_images( )
 	if( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES or last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB )
 	{
 		left_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_, 752, 480, 3 * 8, 752 * 3, rmask, gmask, bmask, amask );
-		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + ( 752 * 480 * 3 ) + 1, 752, 480, 3 * 8, 752 * 3, rmask, gmask, bmask, amask );
+		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + ( 752 * 480 * 3 ) + 0, 752, 480, 3 * 8, 752 * 3, rmask, gmask, bmask, amask );
 	}
 	else
 	{
 		left_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_, 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
-		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + ( 376 * 240 * 3 ) + 1, 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
+		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + ( 376 * 240 * 3 ) + 0, 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
 	}
 
 	//std::cout << "display image " << std::endl;
