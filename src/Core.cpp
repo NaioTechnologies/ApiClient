@@ -212,7 +212,7 @@ Core::call_from_thread( )
 
 			if( asked_start_video_ == true )
 			{
-				ApiCommandPacketPtr api_command_packet_zlib_off = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_OFF_IMAGE_ZLIB_COMPRESSION );
+				ApiCommandPacketPtr api_command_packet_zlib_off = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_ON_IMAGE_ZLIB_COMPRESSION );
 				ApiCommandPacketPtr api_command_packet_stereo_on = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_ON_API_RAW_STEREO_CAMERA_PACKET );
 
 				sendPacketList_.emplace_back( api_command_packet_zlib_off );
@@ -320,13 +320,15 @@ Core::call_from_thread( )
 			{
 				std::cout << "api_stereo_camera_packet_ptr zlib " << std::endl;
 
-				Bytef zlibUncompressedBytes[ 4000000 ];
-				ulong sizeDataUncompressed = 4000000l;
+				Bytef zlibUncompressedBytes[ 1500000 ];
+				uLong sizeDataUncompressed = 1500000l;
 
-				uncompress( zlibUncompressedBytes, &sizeDataUncompressed, bufferUPtr->data(), bufferUPtr->size() );
+				uncompress( (Bytef*)zlibUncompressedBytes, &sizeDataUncompressed, bufferUPtr->data(), static_cast<uLong>( bufferUPtr->size() ) );
 
 				if( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB )
 				{
+					std::cout << "RAW_IMAGES_ZLIB : " << sizeDataUncompressed << std::endl;
+
 					// don't know how to display 8bits image with sdl...
 					for( uint i = 0 ; i < sizeDataUncompressed ; i++ )
 					{
@@ -337,6 +339,8 @@ Core::call_from_thread( )
 				}
 				else
 				{
+					std::cout << "COLORED_IMAGES_ZLIB : " << sizeDataUncompressed << std::endl;
+
 					for( uint i = 0 ; i < sizeDataUncompressed ; i++ )
 					{
 						last_images_buffer_[ i ] = zlibUncompressedBytes[ i ];
@@ -640,7 +644,7 @@ void Core::draw_images( )
 		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + ( 376 * 240 * 3 ) + 1, 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
 	}
 
-	std::cout << "display image " << std::endl;
+	//std::cout << "display image " << std::endl;
 
 	SDL_Rect left_rect = { 400 - 376 - 10, 485, 376, 240 };
 
