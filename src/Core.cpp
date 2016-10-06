@@ -230,7 +230,6 @@ Core::call_from_thread( )
 				asked_stop_video_ = false;
 			}
 
-
 			if( controlType_ == ControlType::CONTROL_TYPE_MANUAL )
 			{
 				if( askedHaMotorsPacketPtr_ == nullptr )
@@ -299,8 +298,10 @@ Core::call_from_thread( )
 
 		api_stereo_camera_packet_ptr_access_.lock();
 
-		if( api_stereo_camera_packet_ptr_ != nullptr and ( api_stereo_camera_packet_ptr_->imageType == ApiStereoCameraPacket::ImageType::RECTIFIED_COLORIZED_IMAGES or api_stereo_camera_packet_ptr_->imageType == ApiStereoCameraPacket::ImageType::RAW_IMAGES or api_stereo_camera_packet_ptr_->imageType == ApiStereoCameraPacket::ImageType::RECTIFIED_COLORIZED_IMAGES_ZLIB or api_stereo_camera_packet_ptr_->imageType == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB ) )
+		if( api_stereo_camera_packet_ptr_ != nullptr )
 		{
+			std::cout << "api_stereo_camera_packet_ptr received " << std::endl;
+
 			last_image_type_ = api_stereo_camera_packet_ptr_->imageType;
 
 			api_stereo_camera_packet_ptr = api_stereo_camera_packet_ptr_;
