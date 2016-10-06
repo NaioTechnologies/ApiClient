@@ -150,8 +150,6 @@ void Core::server_read_thread( )
 		// any time : read incoming messages.
 		int readSize = (int) read( socket_desc_, receiveBuffer, 4000000 );
 
-		//std::cout << "readSize : " << readSize << std::endl;
-
 		if (readSize > 0)
 		{
 			bool packetHeaderDetected = false;
@@ -218,7 +216,6 @@ Core::call_from_thread( )
 				ApiCommandPacketPtr api_command_packet_stereo_on = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_ON_API_RAW_STEREO_CAMERA_PACKET );
 
 				sendPacketList_.emplace_back( api_command_packet_zlib_off );
-
 				sendPacketList_.emplace_back( api_command_packet_stereo_on );
 
 				asked_start_video_ = false;
@@ -317,23 +314,55 @@ Core::call_from_thread( )
 		{
 			cl_copy::BufferUPtr bufferUPtr = std::move( api_stereo_camera_packet_ptr->dataBuffer );
 
+			std::cout << "api_stereo_camera_packet_ptr " << std::endl;
+
 			if( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB  or last_image_type_ == ApiStereoCameraPacket::ImageType::RECTIFIED_COLORIZED_IMAGES_ZLIB )
 			{
-				Bytef zlibUncompressedBytes[4000000];
+				std::cout << "api_stereo_camera_packet_ptr zlib " << std::endl;
+
+				Bytef zlibUncompressedBytes[ 4000000 ];
 				ulong sizeDataUncompressed = 4000000l;
 
 				uncompress( zlibUncompressedBytes, &sizeDataUncompressed, bufferUPtr->data(), bufferUPtr->size() );
 
-				for( uint i = 0; i < sizeDataUncompressed; i++ )
+				if( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB )
 				{
-					last_images_buffer_[ i ] = zlibUncompressedBytes[ i ];
+					// don't know how to display 8bits image with sdl...
+					for( uint i = 0 ; i < sizeDataUncompressed ; i++ )
+					{
+						last_images_buffer_[ ( i * 3 ) + 0 ] = zlibUncompressedBytes[ i ];
+						last_images_buffer_[ ( i * 3 ) + 1 ] = zlibUncompressedBytes[ i ];
+						last_images_buffer_[ ( i * 3 ) + 2 ] = zlibUncompressedBytes[ i ];
+					}
+				}
+				else
+				{
+					for( uint i = 0 ; i < sizeDataUncompressed ; i++ )
+					{
+						last_images_buffer_[ i ] = zlibUncompressedBytes[ i ];
+					}
 				}
 			}
 			else
 			{
-				for( uint i = 0 ; i < bufferUPtr->size() ; i++ )
+				std::cout << "api_stereo_camera_packet_ptr non zlib " << std::endl;
+
+				if( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES )
 				{
-					last_images_buffer_[ i ] = bufferUPtr->at( i );
+					// don't know how to display 8bits image with sdl...
+					for( uint i = 0 ; i < bufferUPtr->size() ; i++ )
+					{
+						last_images_buffer_[ ( i * 3 ) + 0 ] = bufferUPtr->at( i );
+						last_images_buffer_[ ( i * 3 ) + 1 ] = bufferUPtr->at( i );
+						last_images_buffer_[ ( i * 3 ) + 2 ] = bufferUPtr->at( i );
+					}
+				}
+				else
+				{
+					for (uint i = 0; i < bufferUPtr->size(); i++)
+					{
+						last_images_buffer_[i] = bufferUPtr->at( i );
+					}
 				}
 			}
 		}
@@ -588,35 +617,30 @@ void Core::draw_images( )
 
 	SDL_Surface* right_image;
 
+	#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+		Uint32 rmask = 0xff000000;
+		Uint32 gmask = 0x00ff0000;
+		Uint32 bmask = 0x0000ff00;
+		Uint32 amask = 0x000000ff;
+	#else
+		Uint32 rmask = 0x000000ff;
+		Uint32 gmask = 0x0000ff00;
+		Uint32 bmask = 0x00ff0000;
+		Uint32 amask = 0xff000000;
+	#endif
+
 	if( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES or last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB )
 	{
-		Uint32 rmask = 0xff;
-		Uint32 gmask = 0xff;
-		Uint32 bmask = 0xff;
-		Uint32 amask = 0;
-
-		left_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_, 752, 480, 1 * 8, 752, rmask, gmask, bmask, amask );
-
-		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + ( 752 * 480 ) + 1, 752, 480, 1 * 8, 752, rmask, gmask, bmask, amask );
+		left_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_, 752, 480, 3 * 8, 752 * 3, rmask, gmask, bmask, amask );
+		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + ( 752 * 480 * 3 ) + 1, 752, 480, 3 * 8, 752 * 3, rmask, gmask, bmask, amask );
 	}
-	else // if( last_image_type_ == ApiStereoCameraPacket::ImageType::RECTIFIED_COLORIZED_IMAGES or last_image_type_ == ApiStereoCameraPacket::ImageType::RECTIFIED_COLORIZED_IMAGES_ZLIB )
+	else
 	{
-		#if SDL_BYTEORDER == SDL_BIG_ENDIAN
-				Uint32 rmask = 0xff000000;
-				Uint32 gmask = 0x00ff0000;
-				Uint32 bmask = 0x0000ff00;
-				Uint32 amask = 0x000000ff;
-		#else
-				Uint32 rmask = 0x000000ff;
-				Uint32 gmask = 0x0000ff00;
-				Uint32 bmask = 0x00ff0000;
-				Uint32 amask = 0xff000000;
-		#endif
-
 		left_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_, 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
-
-		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + 270720 + 1, 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
+		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + ( 376 * 240 * 3 ) + 1, 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
 	}
+
+	std::cout << "display image " << std::endl;
 
 	SDL_Rect left_rect = { 400 - 376 - 10, 485, 376, 240 };
 
