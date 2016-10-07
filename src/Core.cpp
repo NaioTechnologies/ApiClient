@@ -10,6 +10,7 @@
 #include <HaAcceleroPacket.hpp>
 #include <ApiCommandPacket.hpp>
 #include <zlib.h>
+#include <ApiWatchdogPacket.hpp>
 #include "Core.hpp"
 
 using namespace std;
@@ -32,7 +33,8 @@ Core::Core( ) :
 		api_post_packet_ptr_{nullptr },
 		ha_gps_packet_ptr_{ nullptr },
 		controlType_{ ControlType::CONTROL_TYPE_MANUAL },
-		last_motor_time_{ 0L }
+		last_motor_time_{ 0L },
+		imageNaioCodec_{ }
 {
 	uint8_t fake = 0;
 
@@ -67,6 +69,9 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 	stopThreadAsked_ = false;
 	threadStarted_ = false;
 	socketConnected_ = false;
+
+	imageServerThreadStarted_ = false;
+	stopImageServerThreadAsked_ = false;
 
 	// ignore unused screen
 	(void)screen_;
@@ -108,7 +113,7 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 
 	serverReadThread_ = std::thread( &Core::server_read_thread, this );
 
-	image_prepared_thread_ = std::thread( &Core::image_preparer_thread, this );
+	imageServerThread_ = std::thread( &Core::image_server_thread, this );
 }
 
 // #################################################
@@ -233,9 +238,9 @@ Core::call_from_thread( )
 
 			if( controlType_ == ControlType::CONTROL_TYPE_MANUAL )
 			{
-				uint64_t now = static_cast<uint64_t>( std::chrono::duration_cast< std::chrono::milliseconds >( std::chrono::system_clock::now().time_since_epoch() ).count() );
+				uint64_t keyNow = static_cast<uint64_t>( std::chrono::duration_cast< std::chrono::milliseconds >( std::chrono::system_clock::now().time_since_epoch() ).count() );
 
-				uint64_t time_diff = now - last_motor_time_;
+				uint64_t time_diff = keyNow - last_motor_time_;
 
 				if( askedHaMotorsPacketPtr_ != nullptr and  time_diff >= 25 )
 				{
@@ -259,7 +264,7 @@ Core::call_from_thread( )
 		now = static_cast<int64_t>( ms.count() );
 
 		// sleep half a duration
-		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( duration / 2) ) );
+		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( duration / 2 ) ) );
 
 		// drawing part.
 		SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 255); // the rect color (solid red)
@@ -844,13 +849,138 @@ void Core::joinServerReadThread()
 }
 
 // #################################################
+void Core::image_server_thread( )
+{
+	imageServerReadthreadStarted_ = false;
+	imageServerWriteThreadStarted_ = false;
+
+	stopImageServerReadThreadAsked_ = false;
+	stopImageServerWriteThreadAsked_ = false;
+
+	stopImageServerThreadAsked_ = false;
+	imageServerThreadStarted_ = true;
+
+	struct sockaddr_in imageServer;
+
+	//Create socket
+	image_socket_desc_ = socket( AF_INET, SOCK_STREAM, 0 );
+
+	if ( image_socket_desc_ == -1 )
+	{
+		std::cout << "Could not create socket" << std::endl;
+	}
+
+	imageServer.sin_addr.s_addr = inet_addr( hostAdress_.c_str() );
+	imageServer.sin_family = AF_INET;
+	imageServer.sin_port = htons( static_cast<uint16_t>( hostPort_ + 2 ) );
+
+	//Connect to remote server
+	if ( connect( image_socket_desc_, ( struct sockaddr * ) &imageServer, sizeof( imageServer ) ) < 0 )
+	{
+		puts( "image connect error" );
+	}
+	else
+	{
+		puts( "Connected image\n" );
+		imageSocketConnected_ = true;
+	}
+
+	image_prepared_thread_ = std::thread( &Core::image_preparer_thread, this );
+
+	std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
+
+	imageServerReadThread_ = std::thread( &Core::image_server_read_thread, this );
+
+	std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
+
+	imageServerWriteThread_ = std::thread( &Core::image_server_write_thread, this );
+
+	std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
+
+	while( not stopImageServerThreadAsked_ )
+	{
+		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 500 ) ) );
+	}
+
+	imageServerThreadStarted_ = false;
+	stopImageServerThreadAsked_ = false;
+}
+
+// #################################################
+void Core::image_server_read_thread( )
+{
+	imageServerReadthreadStarted_ = true;
+
+	uint8_t receiveBuffer[ 4000000 ];
+
+	while( !stopImageServerReadThreadAsked_ )
+	{
+		// any time : read incoming messages.
+		int readSize = (int) read( image_socket_desc_, receiveBuffer, 4000000 );
+
+		if (readSize > 0)
+		{
+			bool packetHeaderDetected = false;
+
+			bool atLeastOnePacketReceived = imageNaioCodec_.decode( receiveBuffer, static_cast<uint>( readSize ), packetHeaderDetected );
+
+			// manage received messages
+			if ( atLeastOnePacketReceived == true )
+			{
+				for ( auto &&packetPtr : imageNaioCodec_.currentBasePacketList )
+				{
+					if( std::dynamic_pointer_cast<ApiStereoCameraPacket>( packetPtr )  )
+					{
+						ApiStereoCameraPacketPtr api_stereo_camera_packet_ptr = std::dynamic_pointer_cast<ApiStereoCameraPacket>( packetPtr );
+
+						api_stereo_camera_packet_ptr_access_.lock();
+						api_stereo_camera_packet_ptr_ = api_stereo_camera_packet_ptr;
+						api_stereo_camera_packet_ptr_access_.unlock();
+					}
+				}
+
+				imageNaioCodec_.currentBasePacketList.clear();
+			}
+		}
+
+		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 10 ) ) );
+	}
+
+	imageServerReadthreadStarted_ = false;
+	stopImageServerReadThreadAsked_= false;
+}
+
+// #################################################
+void Core::image_server_write_thread( )
+{
+	imageServerWriteThreadStarted_ = true;
+
+	while( !stopImageServerWriteThreadAsked_ )
+	{
+		if( imageSocketConnected_ )
+		{
+			ApiWatchdogPacketPtr api_watchdog_packet_ptr = std::make_shared<ApiWatchdogPacket>( 42 );
+
+			cl_copy::BufferUPtr buffer = api_watchdog_packet_ptr->encode();
+
+			write( image_socket_desc_, buffer->data(), buffer->size() );
+		}
+
+		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 100 ) ) );
+	}
+
+	imageServerWriteThreadStarted_ = false;
+	stopImageServerWriteThreadAsked_ = false;
+}
+
+// #################################################
 void Core::image_preparer_thread( )
 {
 	Bytef zlibUncompressedBytes[ 4000000l ];
 
 	while ( true )
 	{
-		std::this_thread::sleep_for( std::chrono::milliseconds(static_cast<int64_t>( 100 ) ) );
+		std::this_thread::sleep_for( std::chrono::milliseconds(static_cast<int64_t>( 25 ) ) );
 
 		ApiStereoCameraPacketPtr api_stereo_camera_packet_ptr = nullptr;
 

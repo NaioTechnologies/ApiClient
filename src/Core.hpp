@@ -46,7 +46,6 @@ public:
 	enum ControlType : uint8_t
 	{
 		CONTROL_TYPE_MANUAL = 0x01,
-		//CONTROL_TYPE_AUTO_1 = 0x02,
 	};
 
 public:
@@ -70,7 +69,6 @@ public:
 	void joinServerReadThread();
 
 private:
-
 	// thread function
 	void call_from_thread( );
 
@@ -82,7 +80,6 @@ private:
 
 	// graph function
 	SDL_Window *initSDL(const char* name, int szX, int szY );
-//	void afficherTexte(SDL_Renderer *renderer, char texte[200], int x, int y, int monospace);
 
 	void exitSDL();
 	void readSDLKeyboard();
@@ -96,7 +93,11 @@ private:
 	void draw_text( char gyro_buff[100], int x, int y );
 	void draw_red_post( int x, int y );
 	void draw_images( );
-public:
+
+	// images thread function
+	void image_server_thread( );
+	void image_server_read_thread( );
+	void image_server_write_thread( );
 
 private:
 	// thread part
@@ -163,6 +164,22 @@ private:
 	std::thread image_prepared_thread_;
 
 	uint64_t last_motor_time_;
+
+	int image_socket_desc_;
+	bool imageSocketConnected_;
+	Naio01Codec imageNaioCodec_;
+
+	bool stopImageServerThreadAsked_;
+	bool imageServerThreadStarted_;
+	std::thread imageServerThread_;
+
+	bool stopImageServerReadThreadAsked_;
+	bool imageServerReadthreadStarted_;
+	std::thread imageServerReadThread_;
+
+	bool stopImageServerWriteThreadAsked_;
+	bool imageServerWriteThreadStarted_;
+	std::thread imageServerWriteThread_;
 };
 
 #endif
