@@ -27,14 +27,15 @@ Core::Core( ) :
 		socketConnected_{false},
 		naioCodec_{ },
 		sendPacketList_{ },
-		askedHaMotorsPacketPtr_{ nullptr },
 		ha_lidar_packet_ptr_{ nullptr },
 		ha_odo_packet_ptr_{ nullptr },
 		api_post_packet_ptr_{nullptr },
 		ha_gps_packet_ptr_{ nullptr },
 		controlType_{ ControlType::CONTROL_TYPE_MANUAL },
 		last_motor_time_{ 0L },
-		imageNaioCodec_{ }
+		imageNaioCodec_{ },
+		last_left_motor_{ 0 },
+		last_right_motor_{ 0 }
 {
 	uint8_t fake = 0;
 
@@ -213,10 +214,6 @@ Core::graphic_thread( )
 		{
 			nextTick = now + duration;
 
-			readSDLKeyboard();
-
-			manageSDLKeyboard();
-
 			if( asked_start_video_ == true )
 			{
 				ApiCommandPacketPtr api_command_packet_zlib_off = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_OFF_IMAGE_ZLIB_COMPRESSION );
@@ -240,23 +237,10 @@ Core::graphic_thread( )
 
 				asked_stop_video_ = false;
 			}
-
-			if( controlType_ == ControlType::CONTROL_TYPE_MANUAL )
-			{
-				uint64_t keyNow = static_cast<uint64_t>( std::chrono::duration_cast< std::chrono::milliseconds >( std::chrono::system_clock::now().time_since_epoch() ).count() );
-
-				uint64_t time_diff = keyNow - last_motor_time_;
-
-				if( askedHaMotorsPacketPtr_ != nullptr and  time_diff >= 25 )
-				{
-					sendPacketListAccess_.lock();
-					sendPacketList_.emplace_back( askedHaMotorsPacketPtr_ );
-					sendPacketListAccess_.unlock();
-
-					last_motor_time_ = static_cast<uint64_t>( std::chrono::duration_cast< std::chrono::milliseconds >( std::chrono::system_clock::now().time_since_epoch() ).count() );
-				}
-			}
 		}
+
+		readSDLKeyboard();
+		manageSDLKeyboard();
 
 		// drawing part.
 		SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 255); // the rect color (solid red)
@@ -427,7 +411,16 @@ Core::graphic_thread( )
 
 		std::cout << "display time took " << display_time << " ms so wait_time is " << wait_time << " ms " << std::endl;
 
-		std::this_thread::sleep_for( std::chrono::milliseconds( wait_time ) );
+		readSDLKeyboard();
+		manageSDLKeyboard();
+
+		std::this_thread::sleep_for( std::chrono::milliseconds( wait_time / 2 ) );
+
+		readSDLKeyboard();
+		manageSDLKeyboard();
+
+		std::this_thread::sleep_for( std::chrono::milliseconds( wait_time / 2 ) );
+
 	}
 
 	threadStarted_ = false;
@@ -751,9 +744,10 @@ Core::manageSDLKeyboard()
 		keyPressed = true;
 	}
 
-	motor_packet_access_.lock();
-	askedHaMotorsPacketPtr_ = std::make_shared<HaMotorsPacket>( left * 2, right * 2 );
-	motor_packet_access_.unlock();
+	last_motor_access_.lock();
+	last_left_motor_ = static_cast<int8_t >( left * 2 );
+	last_right_motor_ = static_cast<int8_t >( right * 2 );
+	last_motor_access_.unlock();
 
 	return keyPressed;
 }
@@ -1063,7 +1057,15 @@ void Core::server_write_thread( )
 
 	while( not stopServerWriteThreadAsked_ )
 	{
+		last_motor_access_.lock();
+
+		HaMotorsPacketPtr haMotorsPacketPtr = std::make_shared<HaMotorsPacket>( last_left_motor_, last_right_motor_ );
+
+		last_motor_access_.unlock();
+
 		sendPacketListAccess_.lock();
+
+		sendPacketList_.push_back( haMotorsPacketPtr );
 
 		for( auto&& packet : sendPacketList_ )
 		{
@@ -1078,7 +1080,7 @@ void Core::server_write_thread( )
 
 		sendPacketListAccess_.unlock();
 
-		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 10 ) ) );
+		std::this_thread::sleep_for( std::chrono::milliseconds( SERVER_SEND_COMMAND_RATE_MS ) );
 	}
 
 	stopServerWriteThreadAsked_ = false;

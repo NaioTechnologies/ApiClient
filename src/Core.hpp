@@ -49,6 +49,7 @@ public:
 	};
 
 	const int64_t MAIN_GRAPHIC_DISPLAY_RATE_MS = 100;
+	const int64_t SERVER_SEND_COMMAND_RATE_MS = 25;
 public:
 
 	Core( );
@@ -81,6 +82,7 @@ private:
 	SDL_Window *initSDL(const char* name, int szX, int szY );
 
 	void exitSDL();
+
 	void readSDLKeyboard();
 	bool manageSDLKeyboard();
 
@@ -118,9 +120,6 @@ private:
 	Naio01Codec naioCodec_;
 	std::mutex sendPacketListAccess_;
 	std::vector< BaseNaio01PacketPtr > sendPacketList_;
-	std::mutex motor_packet_access_;
-
-	HaMotorsPacketPtr askedHaMotorsPacketPtr_;
 
 	std::mutex ha_lidar_packet_ptr_access_;
 	HaLidarPacketPtr ha_lidar_packet_ptr_;
@@ -167,9 +166,6 @@ private:
 	bool imageSocketConnected_;
 	Naio01Codec imageNaioCodec_;
 
-
-
-
 	bool stopImageServerThreadAsked_;
 	bool imageServerThreadStarted_;
 	std::thread imageServerThread_;
@@ -181,6 +177,10 @@ private:
 	bool stopImageServerWriteThreadAsked_;
 	bool imageServerWriteThreadStarted_;
 	std::thread imageServerWriteThread_;
+
+	std::mutex last_motor_access_;
+	int8_t last_left_motor_;
+	int8_t last_right_motor_;
 };
 
 #endif
