@@ -50,6 +50,11 @@ public:
 
 	const int64_t MAIN_GRAPHIC_DISPLAY_RATE_MS = 100;
 	const int64_t SERVER_SEND_COMMAND_RATE_MS = 25;
+	const int64_t WAIT_SERVER_IMAGE_TIME_RATE_MS = 10;
+	const int64_t IMAGE_SERVER_WATCHDOG_SENDING_RATE_MS = 100;
+	const int64_t IMAGE_PREPARING_RATE_MS = 25;
+
+	const int64_t TIME_BEFORE_IMAGE_LOST_MS = 500;
 public:
 
 	Core( );
@@ -78,6 +83,9 @@ private:
 	void image_server_read_thread( );
 	void image_server_write_thread( );
 
+	// communications
+	void manageReceivedPacket( BaseNaio01PacketPtr packetPtr );
+
 	// graph
 	SDL_Window *initSDL(const char* name, int szX, int szY );
 
@@ -86,8 +94,6 @@ private:
 	void readSDLKeyboard();
 	bool manageSDLKeyboard();
 
-	// communications
-	void manageReceivedPacket( BaseNaio01PacketPtr packetPtr );
 	void draw_robot();
 	void draw_lidar( uint16_t lidar_distance_[271] );
 	void draw_text( char gyro_buff[100], int x, int y );
@@ -181,6 +187,8 @@ private:
 	std::mutex last_motor_access_;
 	int8_t last_left_motor_;
 	int8_t last_right_motor_;
+
+	uint64_t last_image_received_time_;
 };
 
 #endif

@@ -4,8 +4,6 @@
 #include <chrono>
 #include <unistd.h>
 #include <ApiCodec/ApiMotorsPacket.hpp>
-#include <ApiCodec/ApiStatusPacket.hpp>
-#include <ApiIhmDisplayPacket.hpp>
 #include <HaGyroPacket.hpp>
 #include <HaAcceleroPacket.hpp>
 #include <ApiCommandPacket.hpp>
@@ -17,7 +15,7 @@ using namespace std;
 using namespace std::chrono;
 
 // #################################################
-
+//
 Core::Core( ) :
 		stopThreadAsked_{ false },
 		threadStarted_{ false },
@@ -35,7 +33,8 @@ Core::Core( ) :
 		last_motor_time_{ 0L },
 		imageNaioCodec_{ },
 		last_left_motor_{ 0 },
-		last_right_motor_{ 0 }
+		last_right_motor_{ 0 },
+		last_image_received_time_{ 0 }
 {
 	uint8_t fake = 0;
 
@@ -53,14 +52,14 @@ Core::Core( ) :
 }
 
 // #################################################
-
+//
 Core::~Core( )
 {
 
 }
 
 // #################################################
-
+//
 void
 Core::init( std::string hostAdress, uint16_t hostPort )
 {
@@ -123,6 +122,7 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 }
 
 // #################################################
+//
 void
 Core::stop( )
 {
@@ -137,6 +137,7 @@ Core::stop( )
 }
 
 // #################################################
+//
 void Core::stopServerReadThread( )
 {
 	if( serverReadthreadStarted_)
@@ -186,6 +187,7 @@ void Core::server_read_thread( )
 }
 
 // #################################################
+//
 void
 Core::graphic_thread( )
 {
@@ -246,7 +248,7 @@ Core::graphic_thread( )
 		SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 255); // the rect color (solid red)
 		SDL_Rect background;
 		background.w = 800;
-		background.h = 480;
+		background.h = 483;
 		background.y = 0;
 		background.x = 0;
 
@@ -291,7 +293,7 @@ Core::graphic_thread( )
 			snprintf(gyro_buff, sizeof(gyro_buff), "Gyro  : %d ; %d, %d", ha_gyro_packet_ptr->x, ha_gyro_packet_ptr->y,
 					 ha_gyro_packet_ptr->z);
 
-			std::cout << gyro_buff << std::endl;
+			//std::cout << gyro_buff << std::endl;
 		}
 		else
 		{
@@ -308,7 +310,7 @@ Core::graphic_thread( )
 			snprintf(accel_buff, sizeof(accel_buff), "Accel : %d ; %d, %d", ha_accel_packet_ptr->x,
 					 ha_accel_packet_ptr->y, ha_accel_packet_ptr->z);
 
-			std::cout << accel_buff << std::endl;
+			//std::cout << accel_buff << std::endl;
 		}
 		else
 		{
@@ -324,7 +326,7 @@ Core::graphic_thread( )
 		{
 			snprintf(odo_buff, sizeof(odo_buff), "ODO -> RF : %d ; RR : %d ; RL : %d, FL : %d", ha_odo_packet_ptr->fr, ha_odo_packet_ptr->rr, ha_odo_packet_ptr->rl, ha_odo_packet_ptr->fl );
 
-			std::cout << odo_buff << std::endl;
+			//std::cout << odo_buff << std::endl;
 
 		}
 		else
@@ -386,7 +388,7 @@ Core::graphic_thread( )
 		SDL_Rect flying_pixel;
 		flying_pixel.w = 1;
 		flying_pixel.h = 1;
-		flying_pixel.y = 480 - 40;
+		flying_pixel.y = 482;
 		flying_pixel.x = flying_pixel_x;
 
 		flying_pixel_x++;
@@ -399,9 +401,6 @@ Core::graphic_thread( )
 		// compute wait time
 		milliseconds end_ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
 		int64_t end_now = static_cast<int64_t>( end_ms.count() );
-
-		int64_t display_time = end_now - now;
-
 		int64_t wait_time = nextTick - end_now;
 
 		if( wait_time <= 0 )
@@ -409,7 +408,7 @@ Core::graphic_thread( )
 			wait_time = 10;
 		}
 
-		std::cout << "display time took " << display_time << " ms so wait_time is " << wait_time << " ms " << std::endl;
+		//std::cout << "display time took " << display_time << " ms so wait_time is " << wait_time << " ms " << std::endl;
 
 		readSDLKeyboard();
 		manageSDLKeyboard();
@@ -420,7 +419,6 @@ Core::graphic_thread( )
 		manageSDLKeyboard();
 
 		std::this_thread::sleep_for( std::chrono::milliseconds( wait_time / 2 ) );
-
 	}
 
 	threadStarted_ = false;
@@ -432,6 +430,7 @@ Core::graphic_thread( )
 }
 
 // #################################################
+//
 void Core::draw_text( char buffer[100], int x, int y )
 {
 	SDL_Surface* surfaceMessageAccel = TTF_RenderText_Solid( ttf_font_, buffer, sdl_color_white_ );
@@ -446,6 +445,7 @@ void Core::draw_text( char buffer[100], int x, int y )
 }
 
 // #################################################
+//
 void Core::draw_lidar( uint16_t lidar_distance_[271] )
 {
 	for( int i = 0; i < 271 ; i++ )
@@ -479,6 +479,7 @@ void Core::draw_lidar( uint16_t lidar_distance_[271] )
 }
 
 // #################################################
+//
 void Core::draw_red_post( int x, int y )
 {
 	SDL_SetRenderDrawColor(renderer_, 255, 0, 0, 255);
@@ -492,6 +493,7 @@ void Core::draw_red_post( int x, int y )
 }
 
 // #################################################
+//
 void Core::draw_robot()
 {
 	SDL_SetRenderDrawColor(renderer_, 200, 200, 200, 255);
@@ -550,6 +552,7 @@ void Core::draw_robot()
 }
 
 // #################################################
+//
 void Core::draw_images( )
 {
 	SDL_Surface* left_image;
@@ -597,6 +600,7 @@ void Core::draw_images( )
 }
 
 // #################################################
+//
 SDL_Window*
 Core::initSDL( const char* name, int szX, int szY )
 {
@@ -639,6 +643,7 @@ Core::initSDL( const char* name, int szX, int szY )
 }
 
 // #################################################
+//
 void
 Core::exitSDL()
 {
@@ -646,6 +651,7 @@ Core::exitSDL()
 }
 
 // #################################################
+//
 void
 Core::readSDLKeyboard()
 {
@@ -668,7 +674,7 @@ Core::readSDLKeyboard()
 }
 
 // #################################################
-
+//
 bool
 Core::manageSDLKeyboard()
 {
@@ -753,6 +759,7 @@ Core::manageSDLKeyboard()
 }
 
 // #################################################
+//
 void
 Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 {
@@ -810,6 +817,9 @@ Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 	{
 		ApiStereoCameraPacketPtr api_stereo_camera_packet_ptr = std::dynamic_pointer_cast<ApiStereoCameraPacket>( packetPtr );
 
+		milliseconds now_ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
+		last_image_received_time_ = static_cast<int64_t>( now_ms.count() );
+
 		api_stereo_camera_packet_ptr_access_.lock();
 		api_stereo_camera_packet_ptr_ = api_stereo_camera_packet_ptr;
 		api_stereo_camera_packet_ptr_access_.unlock();
@@ -818,6 +828,7 @@ Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 }
 
 // #################################################
+//
 void
 Core::joinMainThread()
 {
@@ -825,12 +836,14 @@ Core::joinMainThread()
 }
 
 // #################################################
+//
 void Core::joinServerReadThread()
 {
 	serverReadThread_.join();
 }
 
 // #################################################
+//
 void Core::image_server_thread( )
 {
 	imageServerReadthreadStarted_ = false;
@@ -889,6 +902,7 @@ void Core::image_server_thread( )
 }
 
 // #################################################
+//
 void Core::image_server_read_thread( )
 {
 	imageServerReadthreadStarted_ = true;
@@ -915,6 +929,9 @@ void Core::image_server_read_thread( )
 					{
 						ApiStereoCameraPacketPtr api_stereo_camera_packet_ptr = std::dynamic_pointer_cast<ApiStereoCameraPacket>( packetPtr );
 
+						milliseconds now_ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
+						last_image_received_time_ = static_cast<int64_t>( now_ms.count() );
+
 						api_stereo_camera_packet_ptr_access_.lock();
 						api_stereo_camera_packet_ptr_ = api_stereo_camera_packet_ptr;
 						api_stereo_camera_packet_ptr_access_.unlock();
@@ -925,7 +942,7 @@ void Core::image_server_read_thread( )
 			}
 		}
 
-		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 10 ) ) );
+		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( WAIT_SERVER_IMAGE_TIME_RATE_MS ) ) );
 	}
 
 	imageServerReadthreadStarted_ = false;
@@ -949,7 +966,7 @@ void Core::image_server_write_thread( )
 			write( image_socket_desc_, buffer->data(), buffer->size() );
 		}
 
-		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 100 ) ) );
+		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( IMAGE_SERVER_WATCHDOG_SENDING_RATE_MS ) ) );
 	}
 
 	imageServerWriteThreadStarted_ = false;
@@ -957,13 +974,14 @@ void Core::image_server_write_thread( )
 }
 
 // #################################################
+//
 void Core::image_preparer_thread( )
 {
 	Bytef zlibUncompressedBytes[ 4000000l ];
 
 	while ( true )
 	{
-		std::this_thread::sleep_for( std::chrono::milliseconds(static_cast<int64_t>( 25 ) ) );
+		std::this_thread::sleep_for( std::chrono::milliseconds(static_cast<int64_t>( IMAGE_PREPARING_RATE_MS ) ) );
 
 		ApiStereoCameraPacketPtr api_stereo_camera_packet_ptr = nullptr;
 
@@ -997,10 +1015,11 @@ void Core::image_preparer_thread( )
 				if ( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB )
 				{
 					// don't know how to display 8bits image with sdl...
-					for (uint i = 0; i < sizeDataUncompressed; i++) {
-						last_images_buffer_[ (i * 3) + 0 ] = zlibUncompressedBytes[i];
-						last_images_buffer_[ (i * 3) + 1 ] = zlibUncompressedBytes[i];
-						last_images_buffer_[ (i * 3) + 2 ] = zlibUncompressedBytes[i];
+					for ( uint i = 0; i < sizeDataUncompressed; i++ )
+					{
+						last_images_buffer_[ ( i * 3 ) + 0 ] = zlibUncompressedBytes[ i ];
+						last_images_buffer_[ ( i * 3 ) + 1 ] = zlibUncompressedBytes[ i ];
+						last_images_buffer_[ ( i * 3 ) + 2 ] = zlibUncompressedBytes[ i ];
 					}
 				}
 				else
@@ -1017,7 +1036,7 @@ void Core::image_preparer_thread( )
 			{
 				last_images_buffer_access_.lock();
 
-				if (last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES)
+				if ( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES )
 				{
 					// don't know how to display 8bits image with sdl...
 					for (uint i = 0; i < bufferUPtr->size(); i++)
@@ -1038,11 +1057,41 @@ void Core::image_preparer_thread( )
 				last_images_buffer_access_.unlock();
 			}
 		}
+		else
+		{
+			milliseconds now_ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
+			int64_t now = static_cast<int64_t>( now_ms.count() );
+
+			int64_t diff_time = now - last_image_received_time_;
+
+			if( diff_time > TIME_BEFORE_IMAGE_LOST_MS )
+			{
+				last_image_received_time_ = now;
+
+				uint8_t fake = 0;
+
+				last_images_buffer_access_.lock();
+
+				for ( int i = 0 ; i < 721920 * 3 ; i++ )
+				{
+					if( fake >= 255 )
+					{
+						fake = 0;
+					}
+
+					last_images_buffer_[ i ] = fake;
+
+					fake++;
+				}
+
+				last_images_buffer_access_.unlock();
+			}
+		}
 	}
 }
 
-
 // #################################################
+//
 void Core::server_write_thread( )
 {
 	stopServerWriteThreadAsked_ = false;
@@ -1050,7 +1099,7 @@ void Core::server_write_thread( )
 
 	for( int i = 0 ; i < 100 ; i++ )
 	{
-		ApiMotorsPacketPtr first_packet = std::make_shared<ApiMotorsPacket>(0, 0);
+		ApiMotorsPacketPtr first_packet = std::make_shared<ApiMotorsPacket>( 0, 0 );
 		cl_copy::BufferUPtr first_buffer = first_packet->encode();
 		write( socket_desc_, first_buffer->data(), first_buffer->size() );
 	}
