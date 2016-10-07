@@ -21,7 +21,7 @@ using namespace std::chrono;
 Core::Core( ) :
 		stopThreadAsked_{ false },
 		threadStarted_{ false },
-		mainThread_{ },
+		graphicThread_{ },
 		hostAdress_{ "10.0.1.1" },
 		hostPort_{ 5555 },
 		socketConnected_{false},
@@ -73,6 +73,9 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 	imageServerThreadStarted_ = false;
 	stopImageServerThreadAsked_ = false;
 
+	serverReadthreadStarted_ = false;
+	stopServerWriteThreadAsked_ = false;
+
 	// ignore unused screen
 	(void)screen_;
 
@@ -109,9 +112,11 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 	}
 
 	// creates main thread
-	mainThread_ = std::thread( &Core::call_from_thread, this );
+	graphicThread_ = std::thread( &Core::graphic_thread, this );
 
 	serverReadThread_ = std::thread( &Core::server_read_thread, this );
+
+	serverWriteThread_ = std::thread( &Core::server_write_thread, this );
 
 	imageServerThread_ = std::thread( &Core::image_server_thread, this );
 }
@@ -124,7 +129,7 @@ Core::stop( )
 	{
 		stopThreadAsked_ = true;
 
-		mainThread_.join();
+		graphicThread_.join();
 
 		threadStarted_ = false;
 	}
@@ -181,7 +186,7 @@ void Core::server_read_thread( )
 
 // #################################################
 void
-Core::call_from_thread( )
+Core::graphic_thread( )
 {
 	std::cout << "Starting main thread." << std::endl;
 
@@ -192,20 +197,16 @@ Core::call_from_thread( )
 	milliseconds ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
 
 	int64_t now = static_cast<int64_t>( ms.count() );
-	int64_t duration = 15;
+	int64_t duration = MAIN_GRAPHIC_DISPLAY_RATE_MS;
 	int64_t nextTick = now + duration;
 
 	threadStarted_ = true;
 
-	for( int i = 0 ; i < 100 ; i++ )
-	{
-		ApiMotorsPacketPtr first_packet = std::make_shared<ApiMotorsPacket>(0, 0);
-		cl_copy::BufferUPtr first_buffer = first_packet->encode();
-		write(socket_desc_, first_buffer->data(), first_buffer->size());
-	}
-
 	while( !stopThreadAsked_ )
 	{
+		ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
+		now = static_cast<int64_t>( ms.count() );
+
 		// Test keyboard input.
 		// send commands related to keyboard.
 		if( now >= nextTick )
@@ -221,8 +222,10 @@ Core::call_from_thread( )
 				ApiCommandPacketPtr api_command_packet_zlib_off = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_OFF_IMAGE_ZLIB_COMPRESSION );
 				ApiCommandPacketPtr api_command_packet_stereo_on = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_ON_API_RAW_STEREO_CAMERA_PACKET );
 
+				sendPacketListAccess_.lock();
 				sendPacketList_.emplace_back( api_command_packet_zlib_off );
 				sendPacketList_.emplace_back( api_command_packet_stereo_on );
+				sendPacketListAccess_.unlock();
 
 				asked_start_video_ = false;
 			}
@@ -231,7 +234,9 @@ Core::call_from_thread( )
 			{
 				ApiCommandPacketPtr api_command_packet_stereo_off = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_OFF_API_RAW_STEREO_CAMERA_PACKET );
 
+				sendPacketListAccess_.lock();
 				sendPacketList_.emplace_back( api_command_packet_stereo_off );
+				sendPacketListAccess_.unlock();
 
 				asked_stop_video_ = false;
 			}
@@ -244,27 +249,14 @@ Core::call_from_thread( )
 
 				if( askedHaMotorsPacketPtr_ != nullptr and  time_diff >= 25 )
 				{
+					sendPacketListAccess_.lock();
 					sendPacketList_.emplace_back( askedHaMotorsPacketPtr_ );
+					sendPacketListAccess_.unlock();
 
 					last_motor_time_ = static_cast<uint64_t>( std::chrono::duration_cast< std::chrono::milliseconds >( std::chrono::system_clock::now().time_since_epoch() ).count() );
 				}
 			}
 		}
-
-		// send and empty the waiting packet queue
-		bool allWasOk = sendWaitingPackets();
-
-		if( !allWasOk )
-		{
-			// what to do ?
-		}
-
-		// compute next tick
-		ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
-		now = static_cast<int64_t>( ms.count() );
-
-		// sleep half a duration
-		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( duration / 2 ) ) );
 
 		// drawing part.
 		SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 255); // the rect color (solid red)
@@ -418,10 +410,30 @@ Core::call_from_thread( )
 		SDL_RenderFillRect(renderer_, &flying_pixel);
 
 		SDL_RenderPresent( renderer_ );
+
+
+		// compute wait time
+		milliseconds end_ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
+		int64_t end_now = static_cast<int64_t>( end_ms.count() );
+
+		int64_t display_time = end_now - now;
+
+		int64_t wait_time = nextTick - end_now;
+
+		if( wait_time <= 0 )
+		{
+			wait_time = 10;
+		}
+
+		std::cout << "display time took " << display_time << " ms so wait_time is " << wait_time << " ms " << std::endl;
+
+		std::this_thread::sleep_for( std::chrono::milliseconds( wait_time ) );
 	}
 
 	threadStarted_ = false;
 	stopThreadAsked_ = false;
+
+	exitSDL();
 
 	std::cout << "Stopping main thread." << std::endl;
 }
@@ -563,6 +575,8 @@ void Core::draw_images( )
 		Uint32 amask = 0xff000000;
 	#endif
 
+	last_images_buffer_access_.lock();
+
 	if( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES or last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB )
 	{
 		left_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_, 752, 480, 3 * 8, 752 * 3, rmask, gmask, bmask, amask );
@@ -574,7 +588,7 @@ void Core::draw_images( )
 		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + ( 376 * 240 * 3 ), 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
 	}
 
-	//std::cout << "display image " << std::endl;
+	last_images_buffer_access_.unlock();
 
 	SDL_Rect left_rect = { 400 - 376 - 10, 485, 376, 240 };
 
@@ -587,29 +601,6 @@ void Core::draw_images( )
 	SDL_RenderCopy( renderer_, left_texture, NULL, &left_rect );
 
 	SDL_RenderCopy( renderer_, right_texture, NULL, &right_rect );
-}
-
-// #################################################
-bool
-Core::sendWaitingPackets()
-{
-	bool allWasOk = true;
-
-	for( auto&& packet : sendPacketList_ )
-	{
-		cl_copy::BufferUPtr buffer = packet->encode();
-
-		int sentSize = (int)write( socket_desc_, buffer->data(), buffer->size() );
-
-		if( sentSize <= 0 )
-		{
-			allWasOk = false;
-		}
-	}
-
-	sendPacketList_.clear();
-
-	return allWasOk;
 }
 
 // #################################################
@@ -639,9 +630,6 @@ Core::initSDL( const char* name, int szX, int szY )
 
 	SDL_RenderClear( renderer_ );
 	std::cout << ".";
-
-//	SDL_RenderPresent( renderer_ );
-//	std::cout << ".";
 
 	sdl_color_red_ = { 255, 0, 0, 0 };
 	sdl_color_white_ = { 255, 255, 255, 0 };
@@ -774,7 +762,7 @@ Core::manageSDLKeyboard()
 void
 Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 {
-	std::cout << "Packet received id : " << static_cast<int>( packetPtr->getPacketId() ) << std::endl;
+	//std::cout << "Packet received id : " << static_cast<int>( packetPtr->getPacketId() ) << std::endl;
 
 	if( std::dynamic_pointer_cast<HaLidarPacket>( packetPtr )  )
 	{
@@ -839,7 +827,7 @@ Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 void
 Core::joinMainThread()
 {
-	mainThread_.join();
+	graphicThread_.join();
 }
 
 // #################################################
@@ -951,6 +939,7 @@ void Core::image_server_read_thread( )
 }
 
 // #################################################
+// use only for server socket watchdog
 void Core::image_server_write_thread( )
 {
 	imageServerWriteThreadStarted_ = true;
@@ -1009,6 +998,8 @@ void Core::image_preparer_thread( )
 				uncompress( (Bytef *) zlibUncompressedBytes, &sizeDataUncompressed, bufferUPtr->data(),
 						   static_cast<uLong>( bufferUPtr->size() ) );
 
+				last_images_buffer_access_.lock();
+
 				if ( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB )
 				{
 					// don't know how to display 8bits image with sdl...
@@ -1025,9 +1016,13 @@ void Core::image_preparer_thread( )
 						last_images_buffer_[ i ] = zlibUncompressedBytes[i];
 					}
 				}
+
+				last_images_buffer_access_.unlock();
 			}
 			else
 			{
+				last_images_buffer_access_.lock();
+
 				if (last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES)
 				{
 					// don't know how to display 8bits image with sdl...
@@ -1045,7 +1040,47 @@ void Core::image_preparer_thread( )
 						last_images_buffer_[ i ] = bufferUPtr->at( i );
 					}
 				}
+
+				last_images_buffer_access_.unlock();
 			}
 		}
 	}
+}
+
+
+// #################################################
+void Core::server_write_thread( )
+{
+	stopServerWriteThreadAsked_ = false;
+	serverWriteThreadStarted_ = true;
+
+	for( int i = 0 ; i < 100 ; i++ )
+	{
+		ApiMotorsPacketPtr first_packet = std::make_shared<ApiMotorsPacket>(0, 0);
+		cl_copy::BufferUPtr first_buffer = first_packet->encode();
+		write( socket_desc_, first_buffer->data(), first_buffer->size() );
+	}
+
+	while( not stopServerWriteThreadAsked_ )
+	{
+		sendPacketListAccess_.lock();
+
+		for( auto&& packet : sendPacketList_ )
+		{
+			cl_copy::BufferUPtr buffer = packet->encode();
+
+			int sentSize = (int)write( socket_desc_, buffer->data(), buffer->size() );
+
+			(void)sentSize;
+		}
+
+		sendPacketList_.clear();
+
+		sendPacketListAccess_.unlock();
+
+		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 10 ) ) );
+	}
+
+	stopServerWriteThreadAsked_ = false;
+	serverWriteThreadStarted_ = false;
 }

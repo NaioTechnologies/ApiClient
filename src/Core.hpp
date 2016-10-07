@@ -48,6 +48,7 @@ public:
 		CONTROL_TYPE_MANUAL = 0x01,
 	};
 
+	const int64_t MAIN_GRAPHIC_DISPLAY_RATE_MS = 100;
 public:
 
 	Core( );
@@ -56,29 +57,27 @@ public:
 	// launch core
 	void init( std::string hostAdress_, uint16_t hostPort_ );
 
-	// ask stop core.
+	// thread management
 	void stop( );
-
-	// ask stop core.
 	void stopServerReadThread( );
-
-	// wait for core end.
 	void joinMainThread();
-
-	// wait for core end.
 	void joinServerReadThread();
 
 private:
 	// thread function
-	void call_from_thread( );
+	void graphic_thread( );
 
-	// thread function
+	// main server 5555 thread function
 	void server_read_thread( );
-
-	// thread function
+	void server_write_thread( );
 	void image_preparer_thread( );
 
-	// graph function
+	// images server 5557 thread function
+	void image_server_thread( );
+	void image_server_read_thread( );
+	void image_server_write_thread( );
+
+	// graph
 	SDL_Window *initSDL(const char* name, int szX, int szY );
 
 	void exitSDL();
@@ -86,28 +85,25 @@ private:
 	bool manageSDLKeyboard();
 
 	// communications
-	bool sendWaitingPackets();
 	void manageReceivedPacket( BaseNaio01PacketPtr packetPtr );
 	void draw_robot();
 	void draw_lidar( uint16_t lidar_distance_[271] );
 	void draw_text( char gyro_buff[100], int x, int y );
 	void draw_red_post( int x, int y );
 	void draw_images( );
-
-	// images thread function
-	void image_server_thread( );
-	void image_server_read_thread( );
-	void image_server_write_thread( );
-
 private:
 	// thread part
 	bool stopThreadAsked_;
 	bool threadStarted_;
-	std::thread mainThread_;
+	std::thread graphicThread_;
 
 	bool stopServerReadThreadAsked_;
 	bool serverReadthreadStarted_;
 	std::thread serverReadThread_;
+
+	bool stopServerWriteThreadAsked_;
+	bool serverWriteThreadStarted_;
+	std::thread serverWriteThread_;
 
 	// socket part
 	std::string hostAdress_;
@@ -120,6 +116,7 @@ private:
 
 	// codec part
 	Naio01Codec naioCodec_;
+	std::mutex sendPacketListAccess_;
 	std::vector< BaseNaio01PacketPtr > sendPacketList_;
 	std::mutex motor_packet_access_;
 
@@ -145,6 +142,7 @@ private:
 
 	std::mutex api_stereo_camera_packet_ptr_access_;
 	ApiStereoCameraPacketPtr api_stereo_camera_packet_ptr_;
+	std::mutex last_images_buffer_access_;
 	uint8_t last_images_buffer_[ 4000000 ];
 	ApiStereoCameraPacket::ImageType last_image_type_;
 
@@ -168,6 +166,9 @@ private:
 	int image_socket_desc_;
 	bool imageSocketConnected_;
 	Naio01Codec imageNaioCodec_;
+
+
+
 
 	bool stopImageServerThreadAsked_;
 	bool imageServerThreadStarted_;
