@@ -245,18 +245,18 @@ Core::graphic_thread( )
 		manageSDLKeyboard();
 
 		// drawing part.
-		SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 255); // the rect color (solid red)
+		SDL_SetRenderDrawColor( renderer_, 0, 0, 0, 255 ); // the rect color (solid red)
 		SDL_Rect background;
 		background.w = 800;
 		background.h = 483;
 		background.y = 0;
 		background.x = 0;
 
-		SDL_RenderFillRect(renderer_, &background);
+		SDL_RenderFillRect( renderer_, &background );
 
 		draw_robot();
 
-		uint16_t lidar_distance_[271];
+		uint16_t lidar_distance_[ 271 ];
 
 		ha_lidar_packet_ptr_access_.lock();
 
@@ -264,14 +264,14 @@ Core::graphic_thread( )
 		{
 			for( int i = 0; i < 271 ; i++ )
 			{
-				lidar_distance_[i] = ha_lidar_packet_ptr_->distance[ i ];
+				lidar_distance_[ i ] = ha_lidar_packet_ptr_->distance[ i ];
 			}
 		}
 		else
 		{
 			for( int i = 0; i < 271 ; i++ )
 			{
-				lidar_distance_[i] = 5000;
+				lidar_distance_[ i ] = 5000;
 			}
 		}
 
@@ -282,7 +282,7 @@ Core::graphic_thread( )
 		draw_images( );
 
 		// ##############################################
-		char gyro_buff[100];
+		char gyro_buff[ 100 ];
 
 		ha_gyro_packet_ptr_access_.lock();
 		HaGyroPacketPtr ha_gyro_packet_ptr = ha_gyro_packet_ptr_;
@@ -290,14 +290,13 @@ Core::graphic_thread( )
 
 		if( ha_gyro_packet_ptr != nullptr )
 		{
-			snprintf(gyro_buff, sizeof(gyro_buff), "Gyro  : %d ; %d, %d", ha_gyro_packet_ptr->x, ha_gyro_packet_ptr->y,
-					 ha_gyro_packet_ptr->z);
+			snprintf( gyro_buff, sizeof( gyro_buff ), "Gyro  : %d ; %d, %d", ha_gyro_packet_ptr->x, ha_gyro_packet_ptr->y, ha_gyro_packet_ptr->z );
 
 			//std::cout << gyro_buff << std::endl;
 		}
 		else
 		{
-			snprintf(gyro_buff, sizeof(gyro_buff), "Gyro  : N/A ; N/A, N/A" );
+			snprintf( gyro_buff, sizeof( gyro_buff ), "Gyro  : N/A ; N/A, N/A" );
 		}
 
 		ha_accel_packet_ptr_access_.lock();
@@ -307,8 +306,7 @@ Core::graphic_thread( )
 		char accel_buff[100];
 		if( ha_accel_packet_ptr != nullptr )
 		{
-			snprintf(accel_buff, sizeof(accel_buff), "Accel : %d ; %d, %d", ha_accel_packet_ptr->x,
-					 ha_accel_packet_ptr->y, ha_accel_packet_ptr->z);
+			snprintf( accel_buff, sizeof( accel_buff ), "Accel : %d ; %d, %d", ha_accel_packet_ptr->x, ha_accel_packet_ptr->y, ha_accel_packet_ptr->z );
 
 			//std::cout << accel_buff << std::endl;
 		}
@@ -324,31 +322,31 @@ Core::graphic_thread( )
 		char odo_buff[100];
 		if( ha_odo_packet_ptr != nullptr )
 		{
-			snprintf(odo_buff, sizeof(odo_buff), "ODO -> RF : %d ; RR : %d ; RL : %d, FL : %d", ha_odo_packet_ptr->fr, ha_odo_packet_ptr->rr, ha_odo_packet_ptr->rl, ha_odo_packet_ptr->fl );
+			snprintf( odo_buff, sizeof( odo_buff ), "ODO -> RF : %d ; RR : %d ; RL : %d, FL : %d", ha_odo_packet_ptr->fr, ha_odo_packet_ptr->rr, ha_odo_packet_ptr->rl, ha_odo_packet_ptr->fl );
 
 			//std::cout << odo_buff << std::endl;
 
 		}
 		else
 		{
-			snprintf(odo_buff, sizeof(odo_buff), "ODO -> RF : N/A ; RR : N/A ; RL : N/A, FL : N/A" );
+			snprintf( odo_buff, sizeof( odo_buff ), "ODO -> RF : N/A ; RR : N/A ; RL : N/A, FL : N/A" );
 		}
 
 		ha_gps_packet_ptr_access_.lock();
 		HaGpsPacketPtr ha_gps_packet_ptr = ha_gps_packet_ptr_;
 		ha_gps_packet_ptr_access_.unlock();
 
-		char gps1_buff[100];
-		char gps2_buff[100];
+		char gps1_buff[ 100 ];
+		char gps2_buff[ 100 ];
 		if( ha_gps_packet_ptr_ != nullptr )
 		{
-			snprintf(gps1_buff, sizeof(gps1_buff), "GPS -> lat : %lf ; lon : %lf ; alt : %lf", ha_gps_packet_ptr->lat, ha_gps_packet_ptr->lon, ha_gps_packet_ptr->alt ) ;
-			snprintf(gps2_buff, sizeof(gps2_buff), "GPS -> nbsat : %d ; fixlvl : %d ; speed : %lf ", ha_gps_packet_ptr->satUsed,ha_gps_packet_ptr->quality, ha_gps_packet_ptr->groundSpeed ) ;
+			snprintf( gps1_buff, sizeof( gps1_buff ), "GPS -> lat : %lf ; lon : %lf ; alt : %lf", ha_gps_packet_ptr->lat, ha_gps_packet_ptr->lon, ha_gps_packet_ptr->alt ) ;
+			snprintf( gps2_buff, sizeof( gps2_buff ), "GPS -> nbsat : %d ; fixlvl : %d ; speed : %lf ", ha_gps_packet_ptr->satUsed,ha_gps_packet_ptr->quality, ha_gps_packet_ptr->groundSpeed ) ;
 		}
 		else
 		{
-			snprintf(gps1_buff, sizeof(gps1_buff), "GPS -> lat : N/A ; lon : N/A ; alt : N/A" );
-			snprintf(gps2_buff, sizeof(gps2_buff), "GPS -> lnbsat : N/A ; fixlvl : N/A ; speed : N/A" );
+			snprintf( gps1_buff, sizeof( gps1_buff ), "GPS -> lat : N/A ; lon : N/A ; alt : N/A" );
+			snprintf( gps2_buff, sizeof( gps2_buff ), "GPS -> lnbsat : N/A ; fixlvl : N/A ; speed : N/A" );
 		}
 
 		draw_text( gyro_buff, 10, 410 );
@@ -384,7 +382,7 @@ Core::graphic_thread( )
 			flying_pixel_x = 0;
 		}
 
-		SDL_SetRenderDrawColor(renderer_, 200, 150, 125, 255); // the rect color (solid red)
+		SDL_SetRenderDrawColor( renderer_, 200, 150, 125, 255 );
 		SDL_Rect flying_pixel;
 		flying_pixel.w = 1;
 		flying_pixel.h = 1;
@@ -396,7 +394,6 @@ Core::graphic_thread( )
 		SDL_RenderFillRect(renderer_, &flying_pixel);
 
 		SDL_RenderPresent( renderer_ );
-
 
 		// compute wait time
 		milliseconds end_ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
@@ -410,6 +407,7 @@ Core::graphic_thread( )
 
 		//std::cout << "display time took " << display_time << " ms so wait_time is " << wait_time << " ms " << std::endl;
 
+		// repeat keyboard reading for smoother command inputs
 		readSDLKeyboard();
 		manageSDLKeyboard();
 
@@ -435,18 +433,22 @@ void Core::draw_text( char buffer[100], int x, int y )
 {
 	SDL_Surface* surfaceMessageAccel = TTF_RenderText_Solid( ttf_font_, buffer, sdl_color_white_ );
 	SDL_Texture* messageAccel = SDL_CreateTextureFromSurface( renderer_, surfaceMessageAccel );
+
 	SDL_FreeSurface( surfaceMessageAccel );
+
 	SDL_Rect message_rect_accel;
 	message_rect_accel.x = x;
 	message_rect_accel.y = y;
+
 	SDL_QueryTexture( messageAccel, NULL, NULL, &message_rect_accel.w, &message_rect_accel.h );
 	SDL_RenderCopy( renderer_, messageAccel, NULL, &message_rect_accel );
+
 	SDL_DestroyTexture( messageAccel );
 }
 
 // #################################################
 //
-void Core::draw_lidar( uint16_t lidar_distance_[271] )
+void Core::draw_lidar( uint16_t lidar_distance_[ 271 ] )
 {
 	for( int i = 0; i < 271 ; i++ )
 	{
@@ -465,7 +467,7 @@ void Core::draw_lidar( uint16_t lidar_distance_[271] )
 			double x = 400.0 - x_cos;
 			double y = 400.0 - y_sin;
 
-			SDL_SetRenderDrawColor(renderer_, 255, 255, 255, 255);
+			SDL_SetRenderDrawColor( renderer_, 255, 255, 255, 255 );
 			SDL_Rect lidar_pixel;
 
 			lidar_pixel.w = 1;
@@ -473,7 +475,7 @@ void Core::draw_lidar( uint16_t lidar_distance_[271] )
 			lidar_pixel.x = static_cast<int>( x );
 			lidar_pixel.y = static_cast<int>( y );
 
-			SDL_RenderFillRect(renderer_, &lidar_pixel);
+			SDL_RenderFillRect( renderer_, &lidar_pixel );
 		}
 	}
 }
@@ -489,66 +491,66 @@ void Core::draw_red_post( int x, int y )
 	rp.y = 400 - x - 1;
 	rp.x = 400 - y - 1;
 
-	SDL_RenderFillRect(renderer_, &rp);
+	SDL_RenderFillRect( renderer_, &rp );
 }
 
 // #################################################
 //
 void Core::draw_robot()
 {
-	SDL_SetRenderDrawColor(renderer_, 200, 200, 200, 255);
+	SDL_SetRenderDrawColor( renderer_, 200, 200, 200, 255 );
 	SDL_Rect main;
 	main.w = 42;
 	main.h = 80;
 	main.y = 480 - main.h;
 	main.x = 400 - ( main.w / 2);
 
-	SDL_RenderFillRect(renderer_, &main);
+	SDL_RenderFillRect( renderer_, &main );
 
-	SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255);
+	SDL_SetRenderDrawColor( renderer_, 100, 100, 100, 255 );
 	SDL_Rect flw;
 	flw.w = 8;
 	flw.h = 20;
 	flw.y = 480 - 75;
 	flw.x = 400 - 21;
 
-	SDL_RenderFillRect(renderer_, &flw);
+	SDL_RenderFillRect( renderer_, &flw );
 
-	SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255);
+	SDL_SetRenderDrawColor( renderer_, 100, 100, 100, 255 );
 	SDL_Rect frw;
 	frw.w = 8;
 	frw.h = 20;
 	frw.y = 480 - 75;
 	frw.x = 400 + 21 - 8;
 
-	SDL_RenderFillRect(renderer_, &frw);
+	SDL_RenderFillRect( renderer_, &frw );
 
-	SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255);
+	SDL_SetRenderDrawColor( renderer_, 100, 100, 100, 255 );
 	SDL_Rect rlw;
 	rlw.w = 8;
 	rlw.h = 20;
 	rlw.y = 480 - 5 - 20;
 	rlw.x = 400 - 21;
 
-	SDL_RenderFillRect(renderer_, &rlw);
+	SDL_RenderFillRect( renderer_, &rlw );
 
-	SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255);
+	SDL_SetRenderDrawColor( renderer_, 100, 100, 100, 255 );
 	SDL_Rect rrw;
 	rrw.w = 8;
 	rrw.h = 20;
 	rrw.y = 480 - 5 -20;
 	rrw.x = 400 + 21 - 8;
 
-	SDL_RenderFillRect(renderer_, &rrw);
+	SDL_RenderFillRect( renderer_, &rrw );
 
-	SDL_SetRenderDrawColor(renderer_, 120, 120, 120, 255);
+	SDL_SetRenderDrawColor( renderer_, 120, 120, 120, 255 );
 	SDL_Rect lidar;
 	lidar.w = 8;
 	lidar.h = 8;
 	lidar.y = 480 - 80 - 8;
 	lidar.x = 400 - 4;
 
-	SDL_RenderFillRect(renderer_, &lidar);
+	SDL_RenderFillRect( renderer_, &lidar );
 }
 
 // #################################################
@@ -659,7 +661,7 @@ Core::readSDLKeyboard()
 
 	while ( SDL_PollEvent( &event ) )
 	{
-		switch(event.type)
+		switch( event.type )
 		{
 			// Cas d'une touche enfoncée
 			case SDL_KEYDOWN:
