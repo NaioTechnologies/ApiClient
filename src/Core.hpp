@@ -38,6 +38,7 @@
 #include "ApiCodec/HaMotorsPacket.hpp"
 #include "ApiCodec/HaGyroPacket.hpp"
 #include "ApiCodec/HaAcceleroPacket.hpp"
+#include "DriverSocket.hpp"
 
 
 class Core
@@ -58,6 +59,8 @@ public:
 
 	const std::string COM_SIMU_DEFAULT_SIMU_IP = "192.168.1.106";
 	const int COM_SIMU_DEFAULT_SIMU_PORT = 5555;
+
+	const int COM_SIMU_PORT_CORE_LIDAR = 2213;
 
 public:
 
@@ -108,6 +111,8 @@ private:
 	void com_simu_create_virtual_can( );
 	void com_simu_create_serial_thread_function( );
 	void com_simu_read_serial_thread_function( );
+	void com_simu_lidar_to_core_thread_function( );
+	int com_simu_connect_can( );
 
 private:
 	// thread part
@@ -203,6 +208,8 @@ private:
 	// COM SIMU
 	std::thread com_simu_create_serial_thread_;
 	std::thread com_simu_read_serial_thread_;
+	std::thread com_simu_lidar_to_core_thread_;
+	SOCKET com_simu_can_socket_;
 };
 
 #endif

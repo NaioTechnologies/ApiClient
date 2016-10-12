@@ -14,6 +14,11 @@
 // com_simu
 #include "DriverSerial.hpp"
 #include "DriverSocket.hpp"
+#include "createLidarTrame.hpp"
+#include <net/if.h>
+#include <sys/fcntl.h>
+#include <linux/can.h>
+#include <linux/can/raw.h>
 
 using namespace std;
 using namespace std::chrono;
@@ -134,6 +139,9 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 
 	com_simu_read_serial_thread_ = std::thread( &Core::com_simu_read_serial_thread_function, this );
 
+	com_simu_lidar_to_core_thread_ = std::thread( &Core::com_simu_lidar_to_core_thread_function, this );
+
+	com_simu_connect_can( );
 }
 
 // #################################################
@@ -841,7 +849,6 @@ Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 		api_stereo_camera_packet_ptr_ = api_stereo_camera_packet_ptr;
 		api_stereo_camera_packet_ptr_access_.unlock();
 	}
-
 }
 
 // #################################################
@@ -1171,80 +1178,164 @@ void Core::com_simu_read_serial_thread_function( )
 
 	int motorNumber;
 	int posInEntete = 0;
-	char motors[3] = {0};
+	char motors[ 3 ] = { 0 };
 
-	char buffer[100];
-
-	//Connexion au port série
-	int serialPort = serialport_init("/tmp/ttyS1", 9600);
+	int serialPort = serialport_init( "/tmp/ttyS1", 9600 );
 	SOCKET sockSerialSimu = openSocketClient( COM_SIMU_DEFAULT_SIMU_IP.data() , COM_SIMU_DEFAULT_SIMU_PORT );
 
 	while ( 1 )
 	{
 		if ( read( serialPort, b, 1 ) > 0 )
 		{
-
-			//std::cout << "bytes read from serial." << std::endl;
-
 			if (posInEntete == 2)
 			{
-				motors[ motorNumber ] = (((char)b[0])*2) - 128;
+				motors[ motorNumber ] = ( ( ( char ) b[ 0 ] ) * 2 ) - 128;
 				//Envoyer l'ordre moteur si moteur 2, stocker si moteur 1
 
 				if (motorNumber == 2)
-				{//Construction du paquet
-//					strcpy(buffer,"NAIO01");
-//					//strcat(buffer,"\xA8");
-//					strcat(buffer,"\x01");
-//
-//					unsigned long payloadSize = 2;
-//					for (int i = 3;i>=0;i--){
-//						buffer[7+i] = payloadSize%256;
-//						payloadSize /= 256;
-//					}
-//
-//					buffer[11] = motors[2];
-//					buffer[12] = motors[1];
-//
-//					printf("OM %d %d\n",buffer[11],buffer[12]);
-//                  (void)(write(sockSerialSimu,buffer,17)+1);
+				{
 					std::cout << "ha motors created : " << static_cast<int>( motors[ 2 ] ) << " " << static_cast<int>( motors[ 1 ] ) << std::endl;
 
 					HaMotorsPacketPtr haMotorsPacketPtr = std::make_shared<HaMotorsPacket>( motors[ 2 ], motors[ 1 ] );
-
-//					cl_copy::BufferUPtr buffer = haMotorsPacketPtr->encode();
-//
-//					int sentSize = (int)write( socket_desc_, buffer->data(), buffer->size() );
-//
-//					(void)sentSize;
 
 					sendPacketListAccess_.lock();
 
 					sendPacketList_.push_back( haMotorsPacketPtr );
 
 					sendPacketListAccess_.unlock();
-
-					//std::cout << "ha motors pushed back" << std::endl;
 				}
+
 				posInEntete = 0;
 			}
 
 			//On cherche les ordres moteurs parmi ce qu'on lit.
-			if (posInEntete == 1){
-				if (b[0] == 6){
+			if ( posInEntete == 1 )
+			{
+				if ( b[0] == 6 )
+				{
 					motorNumber = 1;
 					posInEntete = 2;
-				} else if (b[0] == 7){
+				}
+				else if ( b[0] == 7 )
+				{
 					motorNumber = 2;
 					posInEntete = 2;
-				} else {
+				}
+				else
+				{
 					posInEntete = 0;
 				}
 			}
 
-			if ((posInEntete == 0) && (b[0] == 128)){
+			if ( ( posInEntete == 0 ) && ( b[ 0 ] == 128 ) )
+			{
 				posInEntete = 1;
 			}
 		}
 	}
+}
+
+// #################################################
+//
+void Core::com_simu_lidar_to_core_thread_function( )
+{
+	SOCKET sockLidarRobot = openSocketServer( COM_SIMU_PORT_CORE_LIDAR );
+
+	sockLidarRobot = waitConnect( sockLidarRobot );
+
+	printf( "Lidar connected to Core\n" );
+
+	struct timespec timeInit;
+
+	clock_gettime( CLOCK_MONOTONIC_RAW, &timeInit );
+
+	unsigned char buffer[ 1000 ];
+	char trame[ 10000 ];
+
+	int lidar[271];
+	int albedo[271];
+
+	uint16_t nbMesures = 1;//à incrémenter à chaque mesure
+	uint16_t nbTelegrammes = 1;//à incrémenter à chaque fois qu'on envoie une donnée
+
+	printf( "listening Lidar\n" );
+
+	while ( 1 )
+	{
+		memset( buffer, '\0', 1000 );
+
+		int size = read( sockLidarRobot, buffer, 1000 );
+
+		if ( size > 0 )
+		{
+			buffer[ size ] = '\0';
+
+			if ( strncmp( "\x02sRN LMDscandata 1\x03",(char*)buffer,strlen("\x02sRN LMDscandata 1\x03" ) ) == 0 )
+			{
+				ha_lidar_packet_ptr_access_.lock();
+
+				if( ha_lidar_packet_ptr_ != nullptr )
+				{
+					for ( int i = 0 ; i < 271 ; i++ )
+					{
+						//2octets
+						lidar[ i ] = buffer[ 11 + ( 2 * i ) ] * 256 + buffer[ 11 + ( 2 * i ) + 1 ];
+					}
+					//albedo
+					for ( int i = 0 ; i < 271 ; i++ )
+					{
+						//1octet
+						albedo[ i ] = buffer[ 11 + ( 271 * 2 ) + i ];
+					}
+
+					nbMesures++;
+
+					//buffer vers socket;
+					nbTelegrammes++;
+
+					createTrame( lidar, albedo, trame, nbMesures, nbTelegrammes, timeInit );
+
+					(void)( write( sockLidarRobot, trame, strlen( trame ) ) + 1 );
+				}
+
+				ha_lidar_packet_ptr_access_.unlock();
+			}
+		}
+		else
+		{
+			usleep(1000);
+		}
+	}
+}
+
+// #################################################
+//
+int Core::com_simu_connect_can( )
+{
+	struct sockaddr_can addr;
+	struct ifreq ifr;
+
+	const char *ifname = "can0";
+
+	printf( "Connect Can\n" );
+
+	// Create the CAN socket
+	com_simu_can_socket_ = socket( PF_CAN, SOCK_RAW, CAN_RAW );
+	printf( "Can sock : %d\n", com_simu_can_socket_ );
+
+	strcpy( ifr.ifr_name, ifname );
+	ioctl( com_simu_can_socket_, SIOCGIFINDEX, &ifr );
+
+	addr.can_family  = AF_CAN;
+	addr.can_ifindex = ifr.ifr_ifindex;
+
+	printf( "%s at index %d\n", ifname, ifr.ifr_ifindex );
+
+	if( bind( com_simu_can_socket_, ( struct sockaddr * ) &addr, sizeof( addr ) ) < 0 )
+	{
+		perror( "Error in socket bind" );
+		return -2;
+	}
+
+	return 1;
 }
