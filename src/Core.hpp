@@ -55,6 +55,10 @@ public:
 	const int64_t IMAGE_PREPARING_RATE_MS = 25;
 
 	const int64_t TIME_BEFORE_IMAGE_LOST_MS = 500;
+
+	const std::string COM_SIMU_DEFAULT_SIMU_IP = "192.168.1.106";
+	const int COM_SIMU_DEFAULT_SIMU_PORT = 5555;
+
 public:
 
 	Core( );
@@ -99,6 +103,12 @@ private:
 	void draw_text( char gyro_buff[100], int x, int y );
 	void draw_red_post( int x, int y );
 	void draw_images( );
+
+	// COM SIMU
+	void com_simu_create_virtual_can( );
+	void com_simu_create_serial_thread_function( );
+	void com_simu_read_serial_thread_function( );
+
 private:
 	// thread part
 	bool stopThreadAsked_;
@@ -189,6 +199,10 @@ private:
 	int8_t last_right_motor_;
 
 	uint64_t last_image_received_time_;
+
+	// COM SIMU
+	std::thread com_simu_create_serial_thread_;
+	std::thread com_simu_read_serial_thread_;
 };
 
 #endif

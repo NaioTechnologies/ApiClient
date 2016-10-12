@@ -11,6 +11,10 @@
 #include <ApiWatchdogPacket.hpp>
 #include "Core.hpp"
 
+// com_simu
+#include "DriverSerial.hpp"
+#include "DriverSocket.hpp"
+
 using namespace std;
 using namespace std::chrono;
 
@@ -119,6 +123,17 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 	serverWriteThread_ = std::thread( &Core::server_write_thread, this );
 
 	imageServerThread_ = std::thread( &Core::image_server_thread, this );
+
+
+	// com_simu
+	com_simu_create_virtual_can( );
+
+	com_simu_create_serial_thread_ = std::thread( &Core::com_simu_create_serial_thread_function, this );
+
+	std::this_thread::sleep_for( std::chrono::milliseconds( 5000 ) );
+
+	com_simu_read_serial_thread_ = std::thread( &Core::com_simu_read_serial_thread_function, this );
+
 }
 
 // #################################################
@@ -1108,15 +1123,7 @@ void Core::server_write_thread( )
 
 	while( not stopServerWriteThreadAsked_ )
 	{
-		last_motor_access_.lock();
-
-		HaMotorsPacketPtr haMotorsPacketPtr = std::make_shared<HaMotorsPacket>( last_left_motor_, last_right_motor_ );
-
-		last_motor_access_.unlock();
-
 		sendPacketListAccess_.lock();
-
-		sendPacketList_.push_back( haMotorsPacketPtr );
 
 		for( auto&& packet : sendPacketList_ )
 		{
@@ -1136,4 +1143,108 @@ void Core::server_write_thread( )
 
 	stopServerWriteThreadAsked_ = false;
 	serverWriteThreadStarted_ = false;
+}
+
+// #################################################
+//
+void Core::com_simu_create_virtual_can( )
+{
+	(void)( system( "modprobe can" ) + 1 );
+	(void)( system( "modprobe can_raw" ) + 1 );
+	(void)( system( "modprobe vcan" ) + 1 );
+	(void)( system( "ip link add dev can0 type vcan" ) + 1 );
+	(void)( system( "ip link set up can0" ) + 1 );
+}
+
+// #################################################
+//
+void Core::com_simu_create_serial_thread_function( )
+{
+	(void)( system( "socat PTY,link=/dev/ttyS0,raw,echo=0 PTY,link=/tmp/ttyS1,raw,echo=0" ) + 1 );
+}
+
+// #################################################
+//
+void Core::com_simu_read_serial_thread_function( )
+{
+	unsigned char b[200];
+
+	int motorNumber;
+	int posInEntete = 0;
+	char motors[3] = {0};
+
+	char buffer[100];
+
+	//Connexion au port série
+	int serialPort = serialport_init("/tmp/ttyS1", 9600);
+	SOCKET sockSerialSimu = openSocketClient( COM_SIMU_DEFAULT_SIMU_IP.data() , COM_SIMU_DEFAULT_SIMU_PORT );
+
+	while ( 1 )
+	{
+		if ( read( serialPort, b, 1 ) > 0 )
+		{
+
+			//std::cout << "bytes read from serial." << std::endl;
+
+			if (posInEntete == 2)
+			{
+				motors[ motorNumber ] = (((char)b[0])*2) - 128;
+				//Envoyer l'ordre moteur si moteur 2, stocker si moteur 1
+
+				if (motorNumber == 2)
+				{//Construction du paquet
+//					strcpy(buffer,"NAIO01");
+//					//strcat(buffer,"\xA8");
+//					strcat(buffer,"\x01");
+//
+//					unsigned long payloadSize = 2;
+//					for (int i = 3;i>=0;i--){
+//						buffer[7+i] = payloadSize%256;
+//						payloadSize /= 256;
+//					}
+//
+//					buffer[11] = motors[2];
+//					buffer[12] = motors[1];
+//
+//					printf("OM %d %d\n",buffer[11],buffer[12]);
+//                  (void)(write(sockSerialSimu,buffer,17)+1);
+					std::cout << "ha motors created : " << static_cast<int>( motors[ 2 ] ) << " " << static_cast<int>( motors[ 1 ] ) << std::endl;
+
+					HaMotorsPacketPtr haMotorsPacketPtr = std::make_shared<HaMotorsPacket>( motors[ 2 ], motors[ 1 ] );
+
+//					cl_copy::BufferUPtr buffer = haMotorsPacketPtr->encode();
+//
+//					int sentSize = (int)write( socket_desc_, buffer->data(), buffer->size() );
+//
+//					(void)sentSize;
+
+					sendPacketListAccess_.lock();
+
+					sendPacketList_.push_back( haMotorsPacketPtr );
+
+					sendPacketListAccess_.unlock();
+
+					//std::cout << "ha motors pushed back" << std::endl;
+				}
+				posInEntete = 0;
+			}
+
+			//On cherche les ordres moteurs parmi ce qu'on lit.
+			if (posInEntete == 1){
+				if (b[0] == 6){
+					motorNumber = 1;
+					posInEntete = 2;
+				} else if (b[0] == 7){
+					motorNumber = 2;
+					posInEntete = 2;
+				} else {
+					posInEntete = 0;
+				}
+			}
+
+			if ((posInEntete == 0) && (b[0] == 128)){
+				posInEntete = 1;
+			}
+		}
+	}
 }
