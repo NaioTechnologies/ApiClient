@@ -132,8 +132,18 @@ public:
 	} COM_SIMU_REMOTE_STATUS ;
 
 
+	typedef struct _COM_SIMU_IHM_BUTTON_STATUS_
+	{
+		bool cancel;
+		bool validate;
+		bool plus;
+		bool minus;
+		bool right;
+		bool left;
+	} COM_SIMU_IHM_BUTTON_STATUS;
+
 	const int64_t MAIN_GRAPHIC_DISPLAY_RATE_MS = 100;
-	const int64_t SERVER_SEND_COMMAND_RATE_MS = 25;
+	const int64_t SERVER_SEND_COMMAND_RATE_MS = 10;
 	const int64_t WAIT_SERVER_IMAGE_TIME_RATE_MS = 10;
 	const int64_t IMAGE_SERVER_WATCHDOG_SENDING_RATE_MS = 100;
 	const int64_t IMAGE_PREPARING_RATE_MS = 25;
@@ -318,6 +328,8 @@ private:
 	char com_simu_ihm_line_bottom_[ 100 ];
 
 	std::thread com_simu_read_can_thread_;
+
+	COM_SIMU_IHM_BUTTON_STATUS com_simu_ihm_button_status_;
 };
 
 #endif

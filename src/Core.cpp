@@ -83,6 +83,13 @@ Core::Core( ) :
 		com_simu_ihm_line_top_[ i ] = '\0';
 		com_simu_ihm_line_bottom_[ i ] = '\0';
 	}
+
+	com_simu_ihm_button_status_.cancel = false;
+	com_simu_ihm_button_status_.validate = false;
+	com_simu_ihm_button_status_.minus = false;
+	com_simu_ihm_button_status_.plus = false;
+	com_simu_ihm_button_status_.left = false;
+	com_simu_ihm_button_status_.right = false;
 }
 
 // #################################################
@@ -170,6 +177,7 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 
 	com_simu_read_can_thread_ = std::thread( &Core::com_simu_read_can_thread_function, this );
 
+	com_simu_remote_thread_= std::thread( &Core::com_simu_remote_thread_function, this );
 }
 
 // #################################################
@@ -854,6 +862,72 @@ Core::manageSDLKeyboard()
 		keyPressed = true;
 	}
 
+	if( sdlKey_[ SDL_SCANCODE_PAGEUP ] == 1 )
+	{
+		com_simu_ihm_button_status_.plus = true;
+
+		keyPressed = true;
+	}
+	else
+	{
+		com_simu_ihm_button_status_.plus = false;
+	}
+
+	if( sdlKey_[ SDL_SCANCODE_PAGEDOWN] == 1 )
+	{
+		com_simu_ihm_button_status_.minus = true;
+
+		keyPressed = true;
+	}
+	else
+	{
+		com_simu_ihm_button_status_.minus = false;
+	}
+
+	if( sdlKey_[ SDL_SCANCODE_HOME] == 1 )
+	{
+		com_simu_ihm_button_status_.left = true;
+
+		keyPressed = true;
+	}
+	else
+	{
+		com_simu_ihm_button_status_.left = false;
+	}
+
+	if( sdlKey_[ SDL_SCANCODE_END] == 1 )
+	{
+		com_simu_ihm_button_status_.right = true;
+
+		keyPressed = true;
+	}
+	else
+	{
+		com_simu_ihm_button_status_.right = false;
+	}
+
+	if( sdlKey_[ SDL_SCANCODE_INSERT] == 1 )
+	{
+		com_simu_ihm_button_status_.validate = true;
+
+		keyPressed = true;
+	}
+	else
+	{
+		com_simu_ihm_button_status_.validate = false;
+	}
+
+	if( sdlKey_[ SDL_SCANCODE_DELETE] == 1 )
+	{
+		com_simu_ihm_button_status_.cancel = true;
+
+		keyPressed = true;
+	}
+	else
+	{
+		com_simu_ihm_button_status_.cancel = false;
+	}
+
 	// #######################
 
 	if( sdlKey_[ SDL_SCANCODE_LEFT ] == 0 and sdlKey_[ SDL_SCANCODE_RIGHT ] == 0 )
@@ -1307,11 +1381,10 @@ void Core::com_simu_read_serial_thread_function( )
 			if ( posInEntete == 2 )
 			{
 				motors[ motorNumber ] = ( ( ( char ) b[ 0 ] ) * 2 ) - 128;
-				//Envoyer l'ordre moteur si moteur 2, stocker si moteur 1
 
 				if ( motorNumber == 2 )
 				{
-					// std::cout << "ha motors created : " << static_cast<int>( motors[ 2 ] ) << " " << static_cast<int>( motors[ 1 ] ) << std::endl;
+					std::cout << "ha motors created : " << static_cast<int>( motors[ 2 ] ) << " " << static_cast<int>( motors[ 1 ] ) << std::endl;
 
 					HaMotorsPacketPtr haMotorsPacketPtr = std::make_shared<HaMotorsPacket>( motors[ 2 ], motors[ 1 ] );
 
@@ -1325,7 +1398,6 @@ void Core::com_simu_read_serial_thread_function( )
 				posInEntete = 0;
 			}
 
-			//On cherche les ordres moteurs parmi ce qu'on lit.
 			if ( posInEntete == 1 )
 			{
 				if ( b[0] == 6 )
@@ -1387,27 +1459,27 @@ void Core::com_simu_lidar_to_core_thread_function( )
 		{
 			buffer[ size ] = '\0';
 
-			if ( strncmp( "\x02sRN LMDscandata 1\x03",(char*)buffer,strlen("\x02sRN LMDscandata 1\x03" ) ) == 0 )
+			if ( strncmp( "\x02sRN LMDscandata 1\x03", ( char* )buffer, strlen( "\x02sRN LMDscandata 1\x03" ) ) == 0 )
 			{
-				ha_lidar_packet_ptr_access_.lock();
+				ha_lidar_packet_ptr_access_.lock( );
 
 				if( ha_lidar_packet_ptr_ != nullptr )
 				{
 					for ( int i = 0 ; i < 271 ; i++ )
 					{
-						//2octets
-						lidar[ i ] = buffer[ 11 + ( 2 * i ) ] * 256 + buffer[ 11 + ( 2 * i ) + 1 ];
+						// 2 bytes
+						lidar[ i ] = ha_lidar_packet_ptr_->distance[ i ]; // ( buffer[ 11 + ( 2 * i ) ] * 256 ) + ( buffer[ 11 + ( 2 * i ) + 1 ] );
 					}
 					//albedo
 					for ( int i = 0 ; i < 271 ; i++ )
 					{
-						//1octet
-						albedo[ i ] = buffer[ 11 + ( 271 * 2 ) + i ];
+						// 1 byte
+						albedo[ i ] = ha_lidar_packet_ptr_->albedo[ i ]; // buffer[ 11 + ( 271 * 2 ) + i ];
 					}
 
 					nbMesures++;
 
-					//buffer vers socket;
+					// buffer to socket;
 					nbTelegrammes++;
 
 					createTrame( lidar, albedo, trame, nbMesures, nbTelegrammes, timeInit );
@@ -1415,12 +1487,12 @@ void Core::com_simu_lidar_to_core_thread_function( )
 					(void)( write( sockLidarRobot, trame, strlen( trame ) ) + 1 );
 				}
 
-				ha_lidar_packet_ptr_access_.unlock();
+				ha_lidar_packet_ptr_access_.unlock( );
 			}
 		}
 		else
 		{
-			usleep(1000);
+			usleep( 1000 );
 		}
 	}
 }
@@ -1464,8 +1536,7 @@ int Core::com_simu_connect_can( )
 
 // #################################################
 //
-void Core::
-com_simu_transform_and_write_to_can( BaseNaio01PacketPtr packetPtr )
+void Core::com_simu_transform_and_write_to_can( BaseNaio01PacketPtr packetPtr )
 {
 	if( std::dynamic_pointer_cast<HaOdoPacket>( packetPtr )  )
 	{
@@ -1478,30 +1549,47 @@ com_simu_transform_and_write_to_can( BaseNaio01PacketPtr packetPtr )
 				com_simu_last_odo_ticks_[ 0 ] = not com_simu_last_odo_ticks_[ 0 ];
 			}
 
-			if( com_simu_last_ha_odo_packet_ptr_->rr != haOdoPacketPtr->rr )
+			if( com_simu_last_ha_odo_packet_ptr_->fl != haOdoPacketPtr->fl )
 			{
 				com_simu_last_odo_ticks_[ 1 ] = not com_simu_last_odo_ticks_[ 1 ];
 			}
 
-			if( com_simu_last_ha_odo_packet_ptr_->rl != haOdoPacketPtr->rl )
+			if( com_simu_last_ha_odo_packet_ptr_->rr != haOdoPacketPtr->rr )
 			{
 				com_simu_last_odo_ticks_[ 2 ] = not com_simu_last_odo_ticks_[ 2 ];
 			}
 
-			if( com_simu_last_ha_odo_packet_ptr_->fl != haOdoPacketPtr->fl )
+			if( com_simu_last_ha_odo_packet_ptr_->rl != haOdoPacketPtr->rl )
 			{
 				com_simu_last_odo_ticks_[ 3 ] = not com_simu_last_odo_ticks_[ 3 ];
 			}
 		}
 
-		uint8_t data[ 4 ];
+		uint8_t data[ 1 ];
 
-		data[ 0 ] = static_cast<unsigned char>( com_simu_last_odo_ticks_[ 0 ] );
-		data[ 1 ] = static_cast<unsigned char>( com_simu_last_odo_ticks_[ 1 ] );
-		data[ 2 ] = static_cast<unsigned char>( com_simu_last_odo_ticks_[ 2 ] );
-		data[ 3 ] = static_cast<unsigned char>( com_simu_last_odo_ticks_[ 3 ] );
+		data[ 0 ] = 0x00;
 
-		com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GEN, ComSimuCanMessageType::CAN_MOT_CONS, data, 4 );
+		if( com_simu_last_odo_ticks_[ 0 ] )
+		{
+			data[ 0 ] = ( data[ 0 ] | ( 0x01 << 0 ) );
+		}
+
+		if( com_simu_last_odo_ticks_[ 1 ] )
+		{
+			data[ 0 ] = ( data[ 0 ] | ( 0x01 << 1 ) );
+		}
+
+		if( com_simu_last_odo_ticks_[ 2 ] )
+		{
+			data[ 0 ] = ( data[ 0 ] | ( 0x01 << 2 ) );
+		}
+
+		if( com_simu_last_odo_ticks_[ 3 ] )
+		{
+			data[ 0 ] = ( data[ 0 ] | ( 0x01 << 3 ) );
+		}
+
+		com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GEN, ComSimuCanMessageType::CAN_MOT_CONS, data, 1 );
 
 		com_simu_last_ha_odo_packet_ptr_ = haOdoPacketPtr;
 	}
@@ -1549,12 +1637,12 @@ void Core::com_simu_send_can_packet( ComSimuCanMessageId id, ComSimuCanMessageTy
 	ssize_t nbytes = -1;
 	int nbTests = 0;
 
-	if ( !com_simu_can_connected_ )
+	if ( not com_simu_can_connected_ )
 	{
 		return;
 	}
 
-	frame.can_id  = (unsigned int)( id * 128 + id_msg );
+	frame.can_id  = ( unsigned int )( id * 128 + id_msg );
 	frame.can_dlc = len;
 
 	for ( uint8_t i = 0 ; i < len ; i++ )
@@ -1578,10 +1666,6 @@ void Core::com_simu_send_can_packet( ComSimuCanMessageId id, ComSimuCanMessageTy
 	{
 		std::cout << "Can write error." << std::endl;
 	}
-	else
-	{
-		//p_logger->logLvl0(Logger::TX, "can", (unsigned char*) &frame, (size_t)nbytes);
-	}
 }
 
 // #################################################
@@ -1591,10 +1675,10 @@ void Core::com_simu_remote_thread_function( )
 
 	while( true )
 	{
-		uint8_t data[ 8 ];
+		uint8_t remote_data[ 8 ];
 
-		data[ 0 ] = com_simu_remote_status_.analog_x;
-		data[ 1 ] = com_simu_remote_status_.analog_y;
+		remote_data[ 0 ] = com_simu_remote_status_.analog_x;
+		remote_data[ 1 ] = com_simu_remote_status_.analog_y;
 
 		uint8_t directional_cross = 0;
 
@@ -1618,20 +1702,56 @@ void Core::com_simu_remote_thread_function( )
 			directional_cross = ( directional_cross | ( 0x01 << 4 ) );
 		}
 
-		data[ 2 ] = 0x00;
-		data[ 3 ] = 0x00;
+		remote_data[ 2 ] = 0x00;
+		remote_data[ 3 ] = 0x00;
 
-		data[ 4 ] = directional_cross;
+		remote_data[ 4 ] = directional_cross;
 
-		data[ 5 ] = 0x00;
-		data[ 6 ] = 0x00;
-		data[ 7 ] = 0x00;
+		remote_data[ 5 ] = 0x00;
+		remote_data[ 6 ] = 0x00;
+		remote_data[ 7 ] = 0x00;
 
-		com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_ISM, ComSimuCanMessageType::CAN_TELECO_KEYS, data, 8 );
+		com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_ISM, ComSimuCanMessageType::CAN_TELECO_KEYS, remote_data, 8 );
+
+		uint8_t keypad_data[ 1 ];
+		uint8_t buttons = 0;
+
+		if( com_simu_ihm_button_status_.cancel )
+		{
+			buttons = ( buttons | ( 0x01 << 0 ) );
+		}
+
+		if( com_simu_ihm_button_status_.validate )
+		{
+			buttons = ( buttons | ( 0x01 << 1 ) );
+		}
+
+		if( com_simu_ihm_button_status_.plus )
+		{
+			buttons = ( buttons | ( 0x01 << 2 ) );
+		}
+
+		if( com_simu_ihm_button_status_.minus )
+		{
+			buttons = ( buttons | ( 0x01 << 3 ) );
+		}
+
+		if( com_simu_ihm_button_status_.right )
+		{
+			buttons = ( buttons | ( 0x01 << 4 ) );
+		}
+
+		if( com_simu_ihm_button_status_.left )
+		{
+			buttons = ( buttons | ( 0x01 << 5 ) );
+		}
+
+		keypad_data[ 0 ] = buttons;
+
+		com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_IHM, ComSimuCanMessageType::CAN_IHM_BUT, keypad_data, 1 );
 
 		std::this_thread::sleep_for( std::chrono::milliseconds( COM_SIMU_REMOTE_SEND_RATE_MS ) );
 	}
-
 }
 
 // #################################################
@@ -1656,15 +1776,6 @@ void Core::com_simu_read_can_thread_function( )
 				{
 					if( ( ( frame.can_id ) % 16 ) == CAN_IHM_LCD )
 					{
-//						std::cout << "can lcd : " ;
-//
-//						for( int i = 0 ; i < 8 ; i ++)
-//						{
-//							std::cout << " [ " << static_cast<char>( frame.data[ i ] ) << " / " << static_cast<int>( frame.data[ i ] ) << " ] "  ;
-//						}
-//
-//						std::cout << std::endl;
-
 						uint8_t car_position = frame.data[ 1 ];
 						char car = static_cast<char>( frame.data[ 2 ] );
 
