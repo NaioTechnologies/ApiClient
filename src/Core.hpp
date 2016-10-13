@@ -49,6 +49,89 @@ public:
 		CONTROL_TYPE_MANUAL = 0x01,
 	};
 
+	enum ComSimuCanMessageId : unsigned char
+	{
+		CAN_ID_GEN = 0x00,
+		//CAN_ID_ODO = 0x00,
+		CAN_ID_ODO = 0x08,
+		CAN_ID_MD = 0x01,
+		CAN_ID_MG = 0x02,
+		CAN_ID_IMU = 0x03,
+		CAN_ID_GPS = 0x04,
+		CAN_ID_GSM = 0x05,
+		CAN_ID_ISM = 0x06,
+		CAN_ID_IHM = 0x07,
+		CAN_ID_VER = 0x08,
+		CAN_ID_BMS = 0x09,
+		CAN_ID_OTHER_ROBOT = 0x0a,
+		CAN_ID_TELECO = 0x0b,
+	};
+
+	enum ComSimuCanMessageType  : unsigned char
+	{
+		CAN_MOT_ODO = 0x03,/*AVD, ARD, ARG, AVG*/
+		/*CAN_MOT_ODO = 0x00,*//*AVD, ARD, ARG, AVG*/
+
+		CAN_MOT_CONS = 0x00,
+
+		CAN_IMU_ACC = 0x00,
+		CAN_IMU_GYRO = 0x01,
+		CAN_IMU_MAG = 0x02,
+
+		CAN_IMU_SET_CHANNEL = 0x0b,
+
+		CAN_TELECO_KEYS = 0x01,
+		CAN_TELECO_LED = 0x00,
+		CAN_TELECO_SET_CHANNEL = 0x04,
+		CAN_TELECO_NUM_VERSION = 0x06,
+
+		CAN_GPS_DATA = 0x00,
+
+		CAN_GSM_ORDER = 0x01,
+		CAN_GSM_DATA = 0x00,
+
+		CAN_IHM_LCD = 0x00,
+		CAN_IHM_BUT = 0x01,
+		CAN_IHM_BUZ = 0x03,
+		CAN_IHM_DEL_KEY = 0x05,
+		CAN_IHM_LED = 0x02,
+		CAN_IHM_CONTRASTE = 0x07,
+
+		CAN_VER_CONS = 0x02,
+		//0 up, 3 down, 1 || 2 still,
+				CAN_VER_POS = 0x01,
+
+		CAN_VER_BATT = 0x07,
+
+		CAN_GEN_TEMP = 0x0e,
+		CAN_GEN_PULVE = 0x0d,
+
+		CAN_BMS_TENSION = 0x00,
+		CAN_BMS_COURANT = 0x01,
+		CAN_BMS_STATUS = 0x02,
+		CAN_BMS_READ_SETUP = 0x03,
+		CAN_BMS_VERSION_SOFT = 0x07,
+		CAN_BMS_VERSION_HARD = 0x08,
+		CAN_BMS_SET_SETUP = 0x0a,
+
+		CAN_OTHER_ROBOT_TX_DATA = 0x00,
+		CAN_OTHER_ROBOT_RX_DATA = 0x01,
+		CAN_OTHER_ROBOT_TX_ORDER = 0x02,
+		CAN_OTHER_ROBOT_RX_ORDER = 0x03,
+	};
+
+	typedef struct _COM_SIMU_REMOTE_STATUS_
+	{
+		bool pad_up;
+		bool pad_left;
+		bool pad_right;
+		bool pad_down;
+
+		uint8_t analog_x;
+		uint8_t analog_y;
+	} COM_SIMU_REMOTE_STATUS ;
+
+
 	const int64_t MAIN_GRAPHIC_DISPLAY_RATE_MS = 100;
 	const int64_t SERVER_SEND_COMMAND_RATE_MS = 25;
 	const int64_t WAIT_SERVER_IMAGE_TIME_RATE_MS = 10;
@@ -61,6 +144,8 @@ public:
 	const int COM_SIMU_DEFAULT_SIMU_PORT = 5555;
 
 	const int COM_SIMU_PORT_CORE_LIDAR = 2213;
+
+	const int64_t COM_SIMU_REMOTE_SEND_RATE_MS = 100;
 
 public:
 
@@ -113,6 +198,12 @@ private:
 	void com_simu_read_serial_thread_function( );
 	void com_simu_lidar_to_core_thread_function( );
 	int com_simu_connect_can( );
+ 	void com_simu_transform_and_write_to_can( BaseNaio01PacketPtr packetPtr );
+	void com_simu_send_can_packet( ComSimuCanMessageId id, ComSimuCanMessageType id_msg, uint8_t data[], uint8_t len );
+
+	void com_simu_remote_thread_function( );
+
+	void com_simu_read_can_thread_function( );
 
 private:
 	// thread part
@@ -209,7 +300,24 @@ private:
 	std::thread com_simu_create_serial_thread_;
 	std::thread com_simu_read_serial_thread_;
 	std::thread com_simu_lidar_to_core_thread_;
+
+	std::mutex com_simu_can_socket_access_;
 	SOCKET com_simu_can_socket_;
+
+	bool com_simu_can_connected_;
+
+	bool com_simu_last_odo_ticks_[4];
+	HaOdoPacketPtr com_simu_last_ha_odo_packet_ptr_;
+
+	std::mutex com_simu_remote_status_access_;
+	COM_SIMU_REMOTE_STATUS com_simu_remote_status_;
+
+	std::thread com_simu_remote_thread_;
+
+	char com_simu_ihm_line_top_[ 100 ];
+	char com_simu_ihm_line_bottom_[ 100 ];
+
+	std::thread com_simu_read_can_thread_;
 };
 
 #endif

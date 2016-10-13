@@ -43,7 +43,8 @@ Core::Core( ) :
 		imageNaioCodec_{ },
 		last_left_motor_{ 0 },
 		last_right_motor_{ 0 },
-		last_image_received_time_{ 0 }
+		last_image_received_time_{ 0 },
+		com_simu_can_connected_{ false }
 {
 	uint8_t fake = 0;
 
@@ -57,6 +58,30 @@ Core::Core( ) :
 		last_images_buffer_[ i ] = fake;
 
 		fake++;
+	}
+
+	com_simu_last_odo_ticks_[0] = false;
+	com_simu_last_odo_ticks_[1] = false;
+	com_simu_last_odo_ticks_[2] = false;
+	com_simu_last_odo_ticks_[3] = false;
+
+	com_simu_remote_status_.pad_down = false;
+	com_simu_remote_status_.pad_up = false;
+	com_simu_remote_status_.pad_left = false;
+	com_simu_remote_status_.pad_right = false;
+	com_simu_remote_status_.analog_x = 63;
+	com_simu_remote_status_.analog_y = 63;
+
+	for( uint i = 0 ; i < 20 ; i++ )
+	{
+		com_simu_ihm_line_top_[ i ] = ' ';
+		com_simu_ihm_line_bottom_[ i ] = ' ';
+	}
+
+	for( uint i = 20 ; i < 100 ; i++ )
+	{
+		com_simu_ihm_line_top_[ i ] = '\0';
+		com_simu_ihm_line_bottom_[ i ] = '\0';
 	}
 }
 
@@ -93,7 +118,7 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 		sdlKey_[i] = 0;
 	}
 
-	std::cout << "Connecting to : " << hostAdress << ":" <<  hostPort << std::endl;
+	std::cout << "Connecting to simu : " << hostAdress << ":" <<  hostPort << std::endl;
 
 	struct sockaddr_in server;
 
@@ -112,11 +137,11 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 	//Connect to remote server
 	if ( connect( socket_desc_, ( struct sockaddr * ) &server, sizeof( server ) ) < 0 )
 	{
-		puts( "connect error" );
+		puts( "Simu connect error" );
 	}
 	else
 	{
-		puts( "Connected\n" );
+		puts( "Simu Connected\n" );
 		socketConnected_ = true;
 	}
 
@@ -142,6 +167,9 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 	com_simu_lidar_to_core_thread_ = std::thread( &Core::com_simu_lidar_to_core_thread_function, this );
 
 	com_simu_connect_can( );
+
+	com_simu_read_can_thread_ = std::thread( &Core::com_simu_read_can_thread_function, this );
+
 }
 
 // #################################################
@@ -377,6 +405,9 @@ Core::graphic_thread( )
 		draw_text( odo_buff, 10, 430 );
 		draw_text( gps1_buff, 10, 440 );
 		draw_text( gps2_buff, 10, 450 );
+
+		draw_text( com_simu_ihm_line_top_, 500, 410 );
+		draw_text( com_simu_ihm_line_bottom_, 500, 420 );
 
 		// ##############################################
 		ApiPostPacketPtr api_post_packet_ptr = nullptr;
@@ -727,36 +758,53 @@ Core::manageSDLKeyboard()
 
 	if( sdlKey_[ SDL_SCANCODE_UP ] == 1 and sdlKey_[ SDL_SCANCODE_LEFT ] == 1 )
 	{
+		com_simu_remote_status_.analog_x = 255;
+		com_simu_remote_status_.analog_y = 255;
+
 		left = 32;
 		right = 63;
 		keyPressed = true;
 	}
 	else if( sdlKey_[ SDL_SCANCODE_UP ] == 1 and sdlKey_[ SDL_SCANCODE_RIGHT ] == 1 )
 	{
+		com_simu_remote_status_.analog_x = 255;
+		com_simu_remote_status_.analog_y = 0;
+
 		left = 63;
 		right = 32;
 		keyPressed = true;
 	}
 	else if( sdlKey_[ SDL_SCANCODE_DOWN ] == 1 and sdlKey_[ SDL_SCANCODE_LEFT ] == 1 )
 	{
+		com_simu_remote_status_.analog_x = 0;
+		com_simu_remote_status_.analog_y = 255;
+
 		left = -32;
 		right = -63;
 		keyPressed = true;
 	}
 	else if( sdlKey_[ SDL_SCANCODE_DOWN ] == 1 and sdlKey_[ SDL_SCANCODE_RIGHT ] == 1 )
 	{
+		com_simu_remote_status_.analog_x = 0;
+		com_simu_remote_status_.analog_y = 0;
+
 		left = -63;
 		right = -32;
 		keyPressed = true;
 	}
 	else if( sdlKey_[ SDL_SCANCODE_UP ] == 1 )
 	{
+		com_simu_remote_status_.analog_x = 255;
+
 		left = 63;
 		right = 63;
 		keyPressed = true;
 	}
+
 	else if( sdlKey_[ SDL_SCANCODE_DOWN ] == 1 )
 	{
+		com_simu_remote_status_.analog_x = 0;
+
 		left = -63;
 		right = -63;
 		keyPressed = true;
@@ -764,15 +812,78 @@ Core::manageSDLKeyboard()
 	}
 	else if( sdlKey_[ SDL_SCANCODE_LEFT ] == 1 )
 	{
+		com_simu_remote_status_.analog_y = 255;
+
 		left = -63;
 		right = 63;
 		keyPressed = true;
 	}
 	else if( sdlKey_[ SDL_SCANCODE_RIGHT ] == 1 )
 	{
+		com_simu_remote_status_.analog_y = 0;
+
 		left = 63;
 		right = -63;
 		keyPressed = true;
+	}
+	// ########################
+	//         COM_SIMU
+	// ########################
+	else if( sdlKey_[ SDL_SCANCODE_4 ] == 1 )
+	{
+		com_simu_remote_status_.pad_left = true;
+
+		keyPressed = true;
+	}
+	else if( sdlKey_[ SDL_SCANCODE_6 ] == 1 )
+	{
+		com_simu_remote_status_.pad_right = true;
+
+		keyPressed = true;
+	}
+	else if( sdlKey_[ SDL_SCANCODE_8 ] == 1 )
+	{
+		com_simu_remote_status_.pad_up = true;
+
+		keyPressed = true;
+	}
+	else if( sdlKey_[ SDL_SCANCODE_2 ] == 1 )
+	{
+		com_simu_remote_status_.pad_down = true;
+
+		keyPressed = true;
+	}
+
+	// #######################
+
+	if( sdlKey_[ SDL_SCANCODE_LEFT ] == 0 and sdlKey_[ SDL_SCANCODE_RIGHT ] == 0 )
+	{
+		com_simu_remote_status_.analog_y = 63;
+	}
+
+	if( sdlKey_[ SDL_SCANCODE_UP ] == 0 and sdlKey_[ SDL_SCANCODE_DOWN ] == 0 )
+	{
+		com_simu_remote_status_.analog_x = 63;
+	}
+
+	if( sdlKey_[ SDL_SCANCODE_6 ] == 0 )
+	{
+		com_simu_remote_status_.pad_right = false;
+	}
+
+	if( sdlKey_[ SDL_SCANCODE_6 ] == 0 )
+	{
+		com_simu_remote_status_.pad_up = false;
+	}
+
+	if( sdlKey_[ SDL_SCANCODE_2 ] == 0 )
+	{
+		com_simu_remote_status_.pad_down = false;
+	}
+
+	if( sdlKey_[ SDL_SCANCODE_4 ] == 0 )
+	{
+		com_simu_remote_status_.pad_left = false;
 	}
 
 	last_motor_access_.lock();
@@ -805,6 +916,8 @@ Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 		ha_gyro_packet_ptr_access_.lock();
 		ha_gyro_packet_ptr_ = haGyroPacketPtr;
 		ha_gyro_packet_ptr_access_.unlock();
+
+		com_simu_transform_and_write_to_can( packetPtr );
 	}
 	else if( std::dynamic_pointer_cast<HaAcceleroPacket>( packetPtr )  )
 	{
@@ -813,6 +926,8 @@ Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 		ha_accel_packet_ptr_access_.lock();
 		ha_accel_packet_ptr_ = haAcceleroPacketPtr;
 		ha_accel_packet_ptr_access_.unlock();
+
+		com_simu_transform_and_write_to_can( packetPtr );
 	}
 	else if( std::dynamic_pointer_cast<HaOdoPacket>( packetPtr )  )
 	{
@@ -821,6 +936,8 @@ Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 		ha_odo_packet_ptr_access.lock();
 		ha_odo_packet_ptr_ = haOdoPacketPtr;
 		ha_odo_packet_ptr_access.unlock();
+
+		com_simu_transform_and_write_to_can( packetPtr );
 	}
 	else if( std::dynamic_pointer_cast<ApiPostPacket>( packetPtr )  )
 	{
@@ -1187,14 +1304,14 @@ void Core::com_simu_read_serial_thread_function( )
 	{
 		if ( read( serialPort, b, 1 ) > 0 )
 		{
-			if (posInEntete == 2)
+			if ( posInEntete == 2 )
 			{
 				motors[ motorNumber ] = ( ( ( char ) b[ 0 ] ) * 2 ) - 128;
 				//Envoyer l'ordre moteur si moteur 2, stocker si moteur 1
 
-				if (motorNumber == 2)
+				if ( motorNumber == 2 )
 				{
-					std::cout << "ha motors created : " << static_cast<int>( motors[ 2 ] ) << " " << static_cast<int>( motors[ 1 ] ) << std::endl;
+					// std::cout << "ha motors created : " << static_cast<int>( motors[ 2 ] ) << " " << static_cast<int>( motors[ 1 ] ) << std::endl;
 
 					HaMotorsPacketPtr haMotorsPacketPtr = std::make_shared<HaMotorsPacket>( motors[ 2 ], motors[ 1 ] );
 
@@ -1317,7 +1434,7 @@ int Core::com_simu_connect_can( )
 
 	const char *ifname = "can0";
 
-	printf( "Connect Can\n" );
+	printf( "Connecting Can\n" );
 
 	// Create the CAN socket
 	com_simu_can_socket_ = socket( PF_CAN, SOCK_RAW, CAN_RAW );
@@ -1329,13 +1446,243 @@ int Core::com_simu_connect_can( )
 	addr.can_family  = AF_CAN;
 	addr.can_ifindex = ifr.ifr_ifindex;
 
-	printf( "%s at index %d\n", ifname, ifr.ifr_ifindex );
+	printf( "Can : %s at index %d\n", ifname, ifr.ifr_ifindex );
 
 	if( bind( com_simu_can_socket_, ( struct sockaddr * ) &addr, sizeof( addr ) ) < 0 )
 	{
-		perror( "Error in socket bind" );
+		perror( "Error in can socket bind" );
 		return -2;
 	}
 
+	com_simu_can_connected_ = true;
+
+	printf( "Can Connected\n" );
+
 	return 1;
+}
+
+
+// #################################################
+//
+void Core::
+com_simu_transform_and_write_to_can( BaseNaio01PacketPtr packetPtr )
+{
+	if( std::dynamic_pointer_cast<HaOdoPacket>( packetPtr )  )
+	{
+		HaOdoPacketPtr haOdoPacketPtr = std::dynamic_pointer_cast<HaOdoPacket>( packetPtr );
+
+		if( com_simu_last_ha_odo_packet_ptr_ != nullptr )
+		{
+			if( com_simu_last_ha_odo_packet_ptr_->fr != haOdoPacketPtr->fr )
+			{
+				com_simu_last_odo_ticks_[ 0 ] = not com_simu_last_odo_ticks_[ 0 ];
+			}
+
+			if( com_simu_last_ha_odo_packet_ptr_->rr != haOdoPacketPtr->rr )
+			{
+				com_simu_last_odo_ticks_[ 1 ] = not com_simu_last_odo_ticks_[ 1 ];
+			}
+
+			if( com_simu_last_ha_odo_packet_ptr_->rl != haOdoPacketPtr->rl )
+			{
+				com_simu_last_odo_ticks_[ 2 ] = not com_simu_last_odo_ticks_[ 2 ];
+			}
+
+			if( com_simu_last_ha_odo_packet_ptr_->fl != haOdoPacketPtr->fl )
+			{
+				com_simu_last_odo_ticks_[ 3 ] = not com_simu_last_odo_ticks_[ 3 ];
+			}
+		}
+
+		uint8_t data[ 4 ];
+
+		data[ 0 ] = static_cast<unsigned char>( com_simu_last_odo_ticks_[ 0 ] );
+		data[ 1 ] = static_cast<unsigned char>( com_simu_last_odo_ticks_[ 1 ] );
+		data[ 2 ] = static_cast<unsigned char>( com_simu_last_odo_ticks_[ 2 ] );
+		data[ 3 ] = static_cast<unsigned char>( com_simu_last_odo_ticks_[ 3 ] );
+
+		com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GEN, ComSimuCanMessageType::CAN_MOT_CONS, data, 4 );
+
+		com_simu_last_ha_odo_packet_ptr_ = haOdoPacketPtr;
+	}
+	else if( std::dynamic_pointer_cast<HaGyroPacket>( packetPtr )  )
+	{
+		HaGyroPacketPtr haGyroPacketPtr = std::dynamic_pointer_cast<HaGyroPacket>( packetPtr );
+
+		uint8_t data[ 6 ];
+
+		data[ 0 ] = ( haGyroPacketPtr->x >> 8 ) & 0xFF;
+		data[ 1 ] = ( haGyroPacketPtr->x >> 0 ) & 0xFF;
+
+		data[ 2 ] = ( haGyroPacketPtr->y >> 8 ) & 0xFF;
+		data[ 3 ] = ( haGyroPacketPtr->y >> 0 ) & 0xFF;
+
+		data[ 4 ] = ( haGyroPacketPtr->z >> 8 ) & 0xFF;
+		data[ 5 ] = ( haGyroPacketPtr->z >> 0 ) & 0xFF;
+
+		com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_IMU, ComSimuCanMessageType::CAN_IMU_GYRO, data, 6 );
+	}
+	else if( std::dynamic_pointer_cast<HaAcceleroPacket>( packetPtr )  )
+	{
+		HaAcceleroPacketPtr haAcceleroPacketPtr = std::dynamic_pointer_cast<HaAcceleroPacket>( packetPtr );
+
+		uint8_t data[ 6 ];
+
+		data[ 0 ] = ( haAcceleroPacketPtr->x >> 8 ) & 0xFF;
+		data[ 1 ] = ( haAcceleroPacketPtr->x >> 0 ) & 0xFF;
+
+		data[ 2 ] = ( haAcceleroPacketPtr->y >> 8 ) & 0xFF;
+		data[ 3 ] = ( haAcceleroPacketPtr->y >> 0 ) & 0xFF;
+
+		data[ 4 ] = ( haAcceleroPacketPtr->z >> 8 ) & 0xFF;
+		data[ 5 ] = ( haAcceleroPacketPtr->z >> 0 ) & 0xFF;
+
+		com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_IMU, ComSimuCanMessageType::CAN_IMU_ACC, data, 6 );
+	}
+}
+
+// #################################################
+//
+void Core::com_simu_send_can_packet( ComSimuCanMessageId id, ComSimuCanMessageType id_msg, uint8_t data[], uint8_t len )
+{
+	struct can_frame frame;
+	ssize_t nbytes = -1;
+	int nbTests = 0;
+
+	if ( !com_simu_can_connected_ )
+	{
+		return;
+	}
+
+	frame.can_id  = (unsigned int)( id * 128 + id_msg );
+	frame.can_dlc = len;
+
+	for ( uint8_t i = 0 ; i < len ; i++ )
+	{
+		frame.data[i] = data[i];
+	}
+
+	while ( nbytes <= 0 && nbTests < 10 )
+	{
+		com_simu_can_socket_access_.lock();
+
+		nbytes = write( com_simu_can_socket_, &frame, sizeof( struct can_frame ) );
+
+		com_simu_can_socket_access_.unlock();
+
+		nbTests++;
+		//usleep( 200 );
+	}
+
+	if ( nbytes <= 0 )
+	{
+		std::cout << "Can write error." << std::endl;
+	}
+	else
+	{
+		//p_logger->logLvl0(Logger::TX, "can", (unsigned char*) &frame, (size_t)nbytes);
+	}
+}
+
+// #################################################
+//
+void Core::com_simu_remote_thread_function( )
+{
+
+	while( true )
+	{
+		uint8_t data[ 8 ];
+
+		data[ 0 ] = com_simu_remote_status_.analog_x;
+		data[ 1 ] = com_simu_remote_status_.analog_y;
+
+		uint8_t directional_cross = 0;
+
+		if( com_simu_remote_status_.pad_up )
+		{
+			directional_cross = ( directional_cross | ( 0x01 << 0 ) );
+		}
+
+		if( com_simu_remote_status_.pad_left )
+		{
+			directional_cross = ( directional_cross | ( 0x01 << 1 ) );
+		}
+
+		if( com_simu_remote_status_.pad_right )
+		{
+			directional_cross = ( directional_cross | ( 0x01 << 3 ) );
+		}
+
+		if( com_simu_remote_status_.pad_down )
+		{
+			directional_cross = ( directional_cross | ( 0x01 << 4 ) );
+		}
+
+		data[ 2 ] = 0x00;
+		data[ 3 ] = 0x00;
+
+		data[ 4 ] = directional_cross;
+
+		data[ 5 ] = 0x00;
+		data[ 6 ] = 0x00;
+		data[ 7 ] = 0x00;
+
+		com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_ISM, ComSimuCanMessageType::CAN_TELECO_KEYS, data, 8 );
+
+		std::this_thread::sleep_for( std::chrono::milliseconds( COM_SIMU_REMOTE_SEND_RATE_MS ) );
+	}
+
+}
+
+// #################################################
+//
+void Core::com_simu_read_can_thread_function( )
+{
+	ssize_t bytesRead;
+
+	struct can_frame frame;
+
+	memset( &frame, 0, sizeof( frame ) );
+
+	while( true )
+	{
+		if( com_simu_can_connected_ )
+		{
+			bytesRead = recv( com_simu_can_socket_, &frame, sizeof( frame ), 0 );
+
+			if ( bytesRead > 0 )
+			{
+				if( ( ( frame.can_id ) >> 7 ) == CAN_ID_IHM )
+				{
+					if( ( ( frame.can_id ) % 16 ) == CAN_IHM_LCD )
+					{
+//						std::cout << "can lcd : " ;
+//
+//						for( int i = 0 ; i < 8 ; i ++)
+//						{
+//							std::cout << " [ " << static_cast<char>( frame.data[ i ] ) << " / " << static_cast<int>( frame.data[ i ] ) << " ] "  ;
+//						}
+//
+//						std::cout << std::endl;
+
+						uint8_t car_position = frame.data[ 1 ];
+						char car = static_cast<char>( frame.data[ 2 ] );
+
+						if( car_position < 16 )
+						{
+							com_simu_ihm_line_top_[ car_position ] = car;
+						}
+						else
+						{
+							com_simu_ihm_line_bottom_[ car_position - 40 ] = car;
+						}
+					}
+				}
+			}
+		}
+		else
+		{
+			std::this_thread::sleep_for( std::chrono::milliseconds( 50 ) );
+		}
+	}
 }
