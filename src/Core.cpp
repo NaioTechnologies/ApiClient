@@ -41,8 +41,6 @@ Core::Core( ) :
 		controlType_{ ControlType::CONTROL_TYPE_MANUAL },
 		last_motor_time_{ 0L },
 		imageNaioCodec_{ },
-		last_left_motor_{ 0 },
-		last_right_motor_{ 0 },
 		last_image_received_time_{ 0 },
 		com_simu_can_connected_{ false }
 {
@@ -757,105 +755,148 @@ Core::manageSDLKeyboard()
 	if( sdlKey_[ SDL_SCANCODE_O ] == 1 )
 	{
 		asked_start_video_ = true;
+
+		keyPressed = true;
 	}
 
 	if( sdlKey_[ SDL_SCANCODE_F ] == 1 )
 	{
 		asked_stop_video_ = true;
+
+		keyPressed = true;
 	}
 
 	if( sdlKey_[ SDL_SCANCODE_UP ] == 1 and sdlKey_[ SDL_SCANCODE_LEFT ] == 1 )
 	{
-		com_simu_remote_status_.analog_x = 255;
-		com_simu_remote_status_.analog_y = 255;
+		com_simu_remote_status_.analog_x = 250;
+		com_simu_remote_status_.analog_y = 5;
 
 		left = 32;
 		right = 63;
 		keyPressed = true;
 	}
-	else if( sdlKey_[ SDL_SCANCODE_UP ] == 1 and sdlKey_[ SDL_SCANCODE_RIGHT ] == 1 )
+
+	if( sdlKey_[ SDL_SCANCODE_UP ] == 1 and sdlKey_[ SDL_SCANCODE_RIGHT ] == 1 )
 	{
-		com_simu_remote_status_.analog_x = 255;
-		com_simu_remote_status_.analog_y = 0;
+		com_simu_remote_status_.analog_x = 250;
+		com_simu_remote_status_.analog_y = 250;
 
 		left = 63;
 		right = 32;
 		keyPressed = true;
 	}
-	else if( sdlKey_[ SDL_SCANCODE_DOWN ] == 1 and sdlKey_[ SDL_SCANCODE_LEFT ] == 1 )
+
+	if( sdlKey_[ SDL_SCANCODE_DOWN ] == 1 and sdlKey_[ SDL_SCANCODE_LEFT ] == 1 )
 	{
-		com_simu_remote_status_.analog_x = 0;
-		com_simu_remote_status_.analog_y = 255;
+		com_simu_remote_status_.analog_x = 5;
+		com_simu_remote_status_.analog_y = 5;
 
 		left = -32;
 		right = -63;
 		keyPressed = true;
 	}
-	else if( sdlKey_[ SDL_SCANCODE_DOWN ] == 1 and sdlKey_[ SDL_SCANCODE_RIGHT ] == 1 )
+
+	if( sdlKey_[ SDL_SCANCODE_DOWN ] == 1 and sdlKey_[ SDL_SCANCODE_RIGHT ] == 1 )
 	{
-		com_simu_remote_status_.analog_x = 0;
-		com_simu_remote_status_.analog_y = 0;
+		com_simu_remote_status_.analog_x = 5;
+		com_simu_remote_status_.analog_y = 250;
 
 		left = -63;
 		right = -32;
 		keyPressed = true;
 	}
-	else if( sdlKey_[ SDL_SCANCODE_UP ] == 1 )
+
+	if( sdlKey_[ SDL_SCANCODE_UP ] == 1 )
 	{
-		com_simu_remote_status_.analog_x = 255;
+		com_simu_remote_status_.analog_x = 250;
 
 		left = 63;
 		right = 63;
 		keyPressed = true;
 	}
 
-	else if( sdlKey_[ SDL_SCANCODE_DOWN ] == 1 )
+	if( sdlKey_[ SDL_SCANCODE_DOWN ] == 1 )
 	{
-		com_simu_remote_status_.analog_x = 0;
+		com_simu_remote_status_.analog_x = 5;
 
 		left = -63;
 		right = -63;
 		keyPressed = true;
-
 	}
-	else if( sdlKey_[ SDL_SCANCODE_LEFT ] == 1 )
+
+	if( sdlKey_[ SDL_SCANCODE_LEFT ] == 1 )
 	{
-		com_simu_remote_status_.analog_y = 255;
+		com_simu_remote_status_.analog_y = 5;
 
 		left = -63;
 		right = 63;
 		keyPressed = true;
 	}
-	else if( sdlKey_[ SDL_SCANCODE_RIGHT ] == 1 )
+
+	if( sdlKey_[ SDL_SCANCODE_RIGHT ] == 1 )
 	{
-		com_simu_remote_status_.analog_y = 0;
+		com_simu_remote_status_.analog_y = 250;
 
 		left = 63;
 		right = -63;
 		keyPressed = true;
 	}
+
 	// ########################
 	//         COM_SIMU
 	// ########################
-	else if( sdlKey_[ SDL_SCANCODE_4 ] == 1 )
+
+	if( sdlKey_[ SDL_SCANCODE_KP_7 ] == 1 )
+	{
+		com_simu_remote_status_.secu_left = true;
+
+		keyPressed = true;
+	}
+
+	if( sdlKey_[ SDL_SCANCODE_KP_9 ] == 1 )
+	{
+		com_simu_remote_status_.secu_right = true;
+
+		keyPressed = true;
+	}
+
+	if( sdlKey_[ SDL_SCANCODE_KP_1 ] == 1 )
+	{
+		com_simu_remote_status_.arr_left = true;
+
+		keyPressed = true;
+	}
+
+	if( sdlKey_[ SDL_SCANCODE_KP_3 ] == 1 )
+	{
+		com_simu_remote_status_.arr_right = true;
+
+		keyPressed = true;
+	}
+
+
+	if( sdlKey_[ SDL_SCANCODE_KP_4 ] == 1 )
 	{
 		com_simu_remote_status_.pad_left = true;
 
 		keyPressed = true;
 	}
-	else if( sdlKey_[ SDL_SCANCODE_6 ] == 1 )
+
+	if( sdlKey_[ SDL_SCANCODE_KP_6 ] == 1 )
 	{
 		com_simu_remote_status_.pad_right = true;
 
 		keyPressed = true;
 	}
-	else if( sdlKey_[ SDL_SCANCODE_8 ] == 1 )
+
+	if( sdlKey_[ SDL_SCANCODE_KP_8 ] == 1 )
 	{
 		com_simu_remote_status_.pad_up = true;
 
 		keyPressed = true;
 	}
-	else if( sdlKey_[ SDL_SCANCODE_2 ] == 1 )
+
+	if( sdlKey_[ SDL_SCANCODE_KP_2 ] == 1 )
 	{
 		com_simu_remote_status_.pad_down = true;
 
@@ -932,38 +973,33 @@ Core::manageSDLKeyboard()
 
 	if( sdlKey_[ SDL_SCANCODE_LEFT ] == 0 and sdlKey_[ SDL_SCANCODE_RIGHT ] == 0 )
 	{
-		com_simu_remote_status_.analog_y = 63;
+		com_simu_remote_status_.analog_y = 128;
 	}
 
 	if( sdlKey_[ SDL_SCANCODE_UP ] == 0 and sdlKey_[ SDL_SCANCODE_DOWN ] == 0 )
 	{
-		com_simu_remote_status_.analog_x = 63;
+		com_simu_remote_status_.analog_x = 128;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_6 ] == 0 )
+	if( sdlKey_[ SDL_SCANCODE_KP_6 ] == 0 )
 	{
 		com_simu_remote_status_.pad_right = false;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_6 ] == 0 )
+	if( sdlKey_[ SDL_SCANCODE_KP_8 ] == 0 )
 	{
 		com_simu_remote_status_.pad_up = false;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_2 ] == 0 )
+	if( sdlKey_[ SDL_SCANCODE_KP_2 ] == 0 )
 	{
 		com_simu_remote_status_.pad_down = false;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_4 ] == 0 )
+	if( sdlKey_[ SDL_SCANCODE_KP_4 ] == 0 )
 	{
 		com_simu_remote_status_.pad_left = false;
 	}
-
-	last_motor_access_.lock();
-	last_left_motor_ = static_cast<int8_t >( left * 2 );
-	last_right_motor_ = static_cast<int8_t >( right * 2 );
-	last_motor_access_.unlock();
 
 	return keyPressed;
 }
@@ -1384,7 +1420,7 @@ void Core::com_simu_read_serial_thread_function( )
 
 				if ( motorNumber == 2 )
 				{
-					std::cout << "ha motors created : " << static_cast<int>( motors[ 2 ] ) << " " << static_cast<int>( motors[ 1 ] ) << std::endl;
+					// std::cout << "ha motors created : " << static_cast<int>( motors[ 2 ] ) << " " << static_cast<int>( motors[ 1 ] ) << std::endl;
 
 					HaMotorsPacketPtr haMotorsPacketPtr = std::make_shared<HaMotorsPacket>( motors[ 2 ], motors[ 1 ] );
 
@@ -1672,85 +1708,15 @@ void Core::com_simu_send_can_packet( ComSimuCanMessageId id, ComSimuCanMessageTy
 //
 void Core::com_simu_remote_thread_function( )
 {
-
 	while( true )
 	{
-		uint8_t remote_data[ 8 ];
+		send_remote_can_packet( CAN_TELECO_KEYS );
 
-		remote_data[ 0 ] = com_simu_remote_status_.analog_x;
-		remote_data[ 1 ] = com_simu_remote_status_.analog_y;
+		std::this_thread::sleep_for( std::chrono::milliseconds( COM_SIMU_REMOTE_SEND_RATE_MS / 2 ) );
 
-		uint8_t directional_cross = 0;
+		send_keypad_can_packet( );
 
-		if( com_simu_remote_status_.pad_up )
-		{
-			directional_cross = ( directional_cross | ( 0x01 << 0 ) );
-		}
-
-		if( com_simu_remote_status_.pad_left )
-		{
-			directional_cross = ( directional_cross | ( 0x01 << 1 ) );
-		}
-
-		if( com_simu_remote_status_.pad_right )
-		{
-			directional_cross = ( directional_cross | ( 0x01 << 3 ) );
-		}
-
-		if( com_simu_remote_status_.pad_down )
-		{
-			directional_cross = ( directional_cross | ( 0x01 << 4 ) );
-		}
-
-		remote_data[ 2 ] = 0x00;
-		remote_data[ 3 ] = 0x00;
-
-		remote_data[ 4 ] = directional_cross;
-
-		remote_data[ 5 ] = 0x00;
-		remote_data[ 6 ] = 0x00;
-		remote_data[ 7 ] = 0x00;
-
-		com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_ISM, ComSimuCanMessageType::CAN_TELECO_KEYS, remote_data, 8 );
-
-		uint8_t keypad_data[ 1 ];
-		uint8_t buttons = 0;
-
-		if( com_simu_ihm_button_status_.cancel )
-		{
-			buttons = ( buttons | ( 0x01 << 0 ) );
-		}
-
-		if( com_simu_ihm_button_status_.validate )
-		{
-			buttons = ( buttons | ( 0x01 << 1 ) );
-		}
-
-		if( com_simu_ihm_button_status_.plus )
-		{
-			buttons = ( buttons | ( 0x01 << 2 ) );
-		}
-
-		if( com_simu_ihm_button_status_.minus )
-		{
-			buttons = ( buttons | ( 0x01 << 3 ) );
-		}
-
-		if( com_simu_ihm_button_status_.right )
-		{
-			buttons = ( buttons | ( 0x01 << 4 ) );
-		}
-
-		if( com_simu_ihm_button_status_.left )
-		{
-			buttons = ( buttons | ( 0x01 << 5 ) );
-		}
-
-		keypad_data[ 0 ] = buttons;
-
-		com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_IHM, ComSimuCanMessageType::CAN_IHM_BUT, keypad_data, 1 );
-
-		std::this_thread::sleep_for( std::chrono::milliseconds( COM_SIMU_REMOTE_SEND_RATE_MS ) );
+		std::this_thread::sleep_for( std::chrono::milliseconds( COM_SIMU_REMOTE_SEND_RATE_MS / 2 ) );
 	}
 }
 
@@ -1789,6 +1755,19 @@ void Core::com_simu_read_can_thread_function( )
 						}
 					}
 				}
+				else if( ( ( frame.can_id ) >> 7 ) == CAN_ID_TELECO )
+				{
+					if( ( ( frame.can_id ) % 16 ) == CAN_TELECO_NUM_VERSION )
+					{
+						std::cout << "setting teleco act : " << static_cast<int>( frame.data[ 6 ] ) << " self_id : " << static_cast<int>(  frame.data[ 7 ] ) << std::endl;
+
+						com_simu_remote_status_.teleco_self_id_6 = frame.data[ 6 ];
+
+						com_simu_remote_status_.teleco_act_7 = frame.data[ 7 ];
+
+						send_remote_can_packet( CAN_TELECO_NUM_VERSION );
+					}
+				}
 			}
 		}
 		else
@@ -1796,4 +1775,182 @@ void Core::com_simu_read_can_thread_function( )
 			std::this_thread::sleep_for( std::chrono::milliseconds( 50 ) );
 		}
 	}
+}
+
+
+// #################################################
+//
+void Core::send_remote_can_packet( ComSimuCanMessageType message_type )
+{
+	uint8_t remote_data[ 8 ];
+
+	if( message_type == ComSimuCanMessageType::CAN_TELECO_KEYS )
+	{
+		// A
+		//		fillClick( (report[4]>>2)%2 , tnData.btn.on_off        );
+		//		fillClick( (report[4]>>0)%2 , tnData.btn.dpad_UP       );
+		//		fillClick( (report[4]>>3)%2 , tnData.btn.dpad_RIGHT    );
+		//		fillClick( (report[4]>>4)%2 , tnData.btn.dpad_DOWN     );
+		//		fillClick( (report[4]>>1)%2 , tnData.btn.dpad_LEFT     );
+		//
+		//		fillClick( (report[2]>>4)%2 , tnData.btn.stop          );
+		//		fillClick( (report[2]>>5)%2 , tnData.btn.go            );
+		//		fillClick( (report[3]>>0)%2 , tnData.btn.arrLeft       );
+		//		fillClick( (report[2]>>1)%2 , tnData.btn.arrRight      );
+		//		fillClick( (report[3]>>1)%2 , tnData.btn.secuLeft      );
+		//		fillClick( (report[2]>>0)%2 , tnData.btn.secuRight     );
+		//		fillClick( (report[2]>>6)%2 , tnData.btn.toolDownLeft  );
+		//		fillClick( (report[2]>>3)%2 , tnData.btn.toolDownRight );
+		//		fillClick( (report[2]>>7)%2 , tnData.btn.toolUpLeft    );
+		//		fillClick( (report[2]>>2)%2 , tnData.btn.toolUpRight   );
+
+		// B
+		//		fillClick( (report[3]>>(TN_UP              -   9))%2 , tnData.btn.dpad_UP       );
+		//		fillClick( (report[3]>>(TN_RIGHT           -   9))%2 , tnData.btn.dpad_RIGHT    );
+		//		fillClick( (report[3]>>(TN_DOWN            -   9))%2 , tnData.btn.dpad_DOWN     );
+		//		fillClick( (report[3]>>(TN_LEFT            -   9))%2 , tnData.btn.dpad_LEFT     );
+		//
+		//		fillClick( (report[3]>>(TN_ON_OFF          -   9))%2 , tnData.btn.on_off        );
+		//		fillClick( (report[3]>>(TN_STOP            -   9))%2 , tnData.btn.stop          );
+		//		fillClick( (report[3]>>(TN_GO              -   9))%2 , tnData.btn.go            );
+		//
+		//		fillClick( (report[2]>>(TN_ARR_LEFT        -   1))%2 , tnData.btn.arrLeft       );
+		//		fillClick( (report[2]>>(TN_ARR_RIGHT       -   1))%2 , tnData.btn.arrRight      );
+		//		fillClick( (report[2]>>(TN_SECU_LEFT       -   1))%2 , tnData.btn.secuLeft      );
+		//		fillClick( (report[2]>>(TN_SECU_RIGHT      -   1))%2 , tnData.btn.secuRight     );
+		//		fillClick( (report[2]>>(TN_TOOL_DOWN_LEFT  -   1))%2 , tnData.btn.toolDownLeft  );
+		//		fillClick( (report[2]>>(TN_TOOL_DOWN_RIGHT -   1))%2 , tnData.btn.toolDownRight );
+		//		fillClick( (report[2]>>(TN_TOOL_UP_LEFT    -   1))%2 , tnData.btn.toolUpLeft    );
+		//		fillClick( (report[2]>>(TN_TOOL_UP_RIGHT   -   1))%2 , tnData.btn.toolUpRight   );
+
+		uint8_t directional_cross = 0;
+
+		uint8_t buttons = 0;
+
+		if( com_simu_remote_status_.pad_up )
+		{
+			std::cout << "com_simu_remote_status_.pad_up" << std::endl;
+
+			directional_cross = ( directional_cross | ( 0x01 << 3 ) );
+		}
+
+		if( com_simu_remote_status_.pad_left )
+		{
+			std::cout << "com_simu_remote_status_.pad_left" << std::endl;
+
+			directional_cross = ( directional_cross | ( 0x01 << 4 ) );
+		}
+
+		if( com_simu_remote_status_.pad_right )
+		{
+			std::cout << "com_simu_remote_status_.pad_right" << std::endl;
+
+			directional_cross = ( directional_cross | ( 0x01 << 5 ) );
+		}
+
+		if( com_simu_remote_status_.pad_down )
+		{
+			std::cout << "com_simu_remote_status_.pad_down" << std::endl;
+
+			directional_cross = ( directional_cross | ( 0x01 << 6 ) );
+		}
+
+		if( com_simu_remote_status_.secu_left )
+		{
+			buttons = ( buttons | ( 0x01 << 0 ) );
+		}
+
+		if( com_simu_remote_status_.secu_right )
+		{
+			buttons = ( buttons | ( 0x01 << 1 ) );
+		}
+
+		if( com_simu_remote_status_.arr_left )
+		{
+			buttons = ( buttons | ( 0x01 << 2 ) );
+		}
+
+		if( com_simu_remote_status_.arr_right )
+		{
+			buttons = ( buttons | ( 0x01 << 3 ) );
+		}
+
+		remote_data[ 0 ] = com_simu_remote_status_.analog_x;
+		remote_data[ 1 ] = com_simu_remote_status_.analog_y;
+
+		remote_data[ 2 ] = buttons;
+		remote_data[ 3 ] = directional_cross;
+
+		remote_data[ 4 ] = 0x00;
+		remote_data[ 5 ] = 0x00;
+
+		remote_data[ 6 ] = 0xff;
+		remote_data[ 7 ] = com_simu_remote_status_.teleco_act_7;
+
+		com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_TELECO, ComSimuCanMessageType::CAN_TELECO_KEYS, remote_data, 8 );
+	}
+	else if( message_type == ComSimuCanMessageType::CAN_TELECO_NUM_VERSION )
+	{
+		remote_data[ 0 ] = 0x01;
+		remote_data[ 1 ] = 0x01;
+		remote_data[ 2 ] = 0x00;
+		remote_data[ 3 ] = 0x00;
+		remote_data[ 4 ] = 0x00;
+		remote_data[ 5 ] = 0x00;
+		remote_data[ 6 ] = com_simu_remote_status_.teleco_self_id_6;
+		remote_data[ 7 ] = com_simu_remote_status_.teleco_act_7;
+
+		if( com_simu_remote_status_.teleco_act_7 < 10 )
+		{
+			remote_data[ 2 ] = ( 4 + 128 );
+		}
+		else if( com_simu_remote_status_.teleco_act_7 > 10 )
+		{
+			remote_data[ 2 ] = ( 16 + 32 );
+		}
+
+		com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_TELECO, ComSimuCanMessageType::CAN_TELECO_NUM_VERSION, remote_data, 8 );
+	}
+}
+
+// #################################################
+//
+void Core::send_keypad_can_packet( )
+{
+	uint8_t keypad_data[ 1 ];
+	uint8_t buttons = 0;
+
+	if( com_simu_ihm_button_status_.cancel )
+	{
+		buttons = ( buttons | ( 0x01 << 0 ) );
+	}
+
+	if( com_simu_ihm_button_status_.validate )
+	{
+		buttons = ( buttons | ( 0x01 << 1 ) );
+	}
+
+	if( com_simu_ihm_button_status_.plus )
+	{
+		buttons = ( buttons | ( 0x01 << 2 ) );
+	}
+
+	if( com_simu_ihm_button_status_.minus )
+	{
+		buttons = ( buttons | ( 0x01 << 3 ) );
+	}
+
+	if( com_simu_ihm_button_status_.right )
+	{
+		buttons = ( buttons | ( 0x01 << 4 ) );
+	}
+
+	if( com_simu_ihm_button_status_.left )
+	{
+		buttons = ( buttons | ( 0x01 << 5 ) );
+	}
+
+	keypad_data[ 0 ] = buttons;
+
+	com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_IHM, ComSimuCanMessageType::CAN_IHM_BUT, keypad_data, 1 );
 }

@@ -122,6 +122,12 @@ public:
 
 	typedef struct _COM_SIMU_REMOTE_STATUS_
 	{
+		bool secu_left;
+		bool secu_right;
+
+		bool arr_left;
+		bool arr_right;
+
 		bool pad_up;
 		bool pad_left;
 		bool pad_right;
@@ -129,6 +135,9 @@ public:
 
 		uint8_t analog_x;
 		uint8_t analog_y;
+
+		uint8_t teleco_self_id_6;
+		uint8_t teleco_act_7;
 	} COM_SIMU_REMOTE_STATUS ;
 
 
@@ -215,6 +224,9 @@ private:
 
 	void com_simu_read_can_thread_function( );
 
+	void send_remote_can_packet( ComSimuCanMessageType message_type );
+
+	void send_keypad_can_packet( );
 private:
 	// thread part
 	bool stopThreadAsked_;
@@ -299,10 +311,6 @@ private:
 	bool stopImageServerWriteThreadAsked_;
 	bool imageServerWriteThreadStarted_;
 	std::thread imageServerWriteThread_;
-
-	std::mutex last_motor_access_;
-	int8_t last_left_motor_;
-	int8_t last_right_motor_;
 
 	uint64_t last_image_received_time_;
 
