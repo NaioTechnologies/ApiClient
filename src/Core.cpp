@@ -70,6 +70,9 @@ Core::Core( ) :
 	com_simu_remote_status_.analog_x = 63;
 	com_simu_remote_status_.analog_y = 63;
 
+	com_simu_remote_status_.teleco_self_id_6 = 255;
+	com_simu_remote_status_.teleco_act_7 = 253;
+
 	for( uint i = 0 ; i < 20 ; i++ )
 	{
 		com_simu_ihm_line_top_[ i ] = ' ';
@@ -1759,11 +1762,9 @@ void Core::com_simu_read_can_thread_function( )
 				{
 					if( ( ( frame.can_id ) % 16 ) == CAN_TELECO_NUM_VERSION )
 					{
-						std::cout << "setting teleco act : " << static_cast<int>( frame.data[ 6 ] ) << " self_id : " << static_cast<int>(  frame.data[ 7 ] ) << std::endl;
+						// std::cout << "setting teleco act : " << static_cast<int>( frame.data[ 6 ] ) << " self_id : " << static_cast<int>(  frame.data[ 7 ] ) << std::endl;
 
-						com_simu_remote_status_.teleco_self_id_6 = frame.data[ 6 ];
-
-						com_simu_remote_status_.teleco_act_7 = frame.data[ 7 ];
+						com_simu_remote_status_.teleco_self_id_6 = frame.data[ 7 ];
 
 						send_remote_can_packet( CAN_TELECO_NUM_VERSION );
 					}
@@ -1786,24 +1787,6 @@ void Core::send_remote_can_packet( ComSimuCanMessageType message_type )
 
 	if( message_type == ComSimuCanMessageType::CAN_TELECO_KEYS )
 	{
-		// A
-		//		fillClick( (report[4]>>2)%2 , tnData.btn.on_off        );
-		//		fillClick( (report[4]>>0)%2 , tnData.btn.dpad_UP       );
-		//		fillClick( (report[4]>>3)%2 , tnData.btn.dpad_RIGHT    );
-		//		fillClick( (report[4]>>4)%2 , tnData.btn.dpad_DOWN     );
-		//		fillClick( (report[4]>>1)%2 , tnData.btn.dpad_LEFT     );
-		//
-		//		fillClick( (report[2]>>4)%2 , tnData.btn.stop          );
-		//		fillClick( (report[2]>>5)%2 , tnData.btn.go            );
-		//		fillClick( (report[3]>>0)%2 , tnData.btn.arrLeft       );
-		//		fillClick( (report[2]>>1)%2 , tnData.btn.arrRight      );
-		//		fillClick( (report[3]>>1)%2 , tnData.btn.secuLeft      );
-		//		fillClick( (report[2]>>0)%2 , tnData.btn.secuRight     );
-		//		fillClick( (report[2]>>6)%2 , tnData.btn.toolDownLeft  );
-		//		fillClick( (report[2]>>3)%2 , tnData.btn.toolDownRight );
-		//		fillClick( (report[2]>>7)%2 , tnData.btn.toolUpLeft    );
-		//		fillClick( (report[2]>>2)%2 , tnData.btn.toolUpRight   );
-
 		// B
 		//		fillClick( (report[3]>>(TN_UP              -   9))%2 , tnData.btn.dpad_UP       );
 		//		fillClick( (report[3]>>(TN_RIGHT           -   9))%2 , tnData.btn.dpad_RIGHT    );
@@ -1823,9 +1806,10 @@ void Core::send_remote_can_packet( ComSimuCanMessageType message_type )
 		//		fillClick( (report[2]>>(TN_TOOL_UP_LEFT    -   1))%2 , tnData.btn.toolUpLeft    );
 		//		fillClick( (report[2]>>(TN_TOOL_UP_RIGHT   -   1))%2 , tnData.btn.toolUpRight   );
 
-		uint8_t directional_cross = 0;
+		uint8_t directional_cross = 0x00;
+		uint8_t buttons1 = 0x00;
 
-		uint8_t buttons = 0;
+		// std::cout << "com_simu_remote_status_.teleco_act_7 : " << static_cast< int >( com_simu_remote_status_.teleco_act_7 ) << std::endl;
 
 		if( com_simu_remote_status_.pad_up )
 		{
@@ -1857,42 +1841,42 @@ void Core::send_remote_can_packet( ComSimuCanMessageType message_type )
 
 		if( com_simu_remote_status_.secu_left )
 		{
-			buttons = ( buttons | ( 0x01 << 0 ) );
+			buttons1 = ( buttons1 | ( 0x01 << 0 ) );
 		}
 
 		if( com_simu_remote_status_.secu_right )
 		{
-			buttons = ( buttons | ( 0x01 << 1 ) );
+			buttons1 = ( buttons1 | ( 0x01 << 1 ) );
 		}
 
 		if( com_simu_remote_status_.arr_left )
 		{
-			buttons = ( buttons | ( 0x01 << 2 ) );
+			buttons1 = ( buttons1 | ( 0x01 << 2 ) );
 		}
 
 		if( com_simu_remote_status_.arr_right )
 		{
-			buttons = ( buttons | ( 0x01 << 3 ) );
+			buttons1 = ( buttons1 | ( 0x01 << 3 ) );
 		}
 
 		remote_data[ 0 ] = com_simu_remote_status_.analog_x;
 		remote_data[ 1 ] = com_simu_remote_status_.analog_y;
 
-		remote_data[ 2 ] = buttons;
+		remote_data[ 2 ] = buttons1;
 		remote_data[ 3 ] = directional_cross;
 
 		remote_data[ 4 ] = 0x00;
 		remote_data[ 5 ] = 0x00;
 
-		remote_data[ 6 ] = 0xff;
+		remote_data[ 6 ] = com_simu_remote_status_.teleco_self_id_6;
 		remote_data[ 7 ] = com_simu_remote_status_.teleco_act_7;
 
 		com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_TELECO, ComSimuCanMessageType::CAN_TELECO_KEYS, remote_data, 8 );
 	}
 	else if( message_type == ComSimuCanMessageType::CAN_TELECO_NUM_VERSION )
 	{
-		remote_data[ 0 ] = 0x01;
-		remote_data[ 1 ] = 0x01;
+		remote_data[ 0 ] = 0x10;
+		remote_data[ 1 ] = 0x08;
 		remote_data[ 2 ] = 0x00;
 		remote_data[ 3 ] = 0x00;
 		remote_data[ 4 ] = 0x00;
