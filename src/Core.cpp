@@ -342,6 +342,7 @@ Core::graphic_thread( )
 		draw_images( );
 
 		// ##############################################
+
 		char gyro_buff[ 100 ];
 
 		ha_gyro_packet_ptr_access_.lock();
@@ -351,8 +352,6 @@ Core::graphic_thread( )
 		if( ha_gyro_packet_ptr != nullptr )
 		{
 			snprintf( gyro_buff, sizeof( gyro_buff ), "Gyro  : %d ; %d, %d", ha_gyro_packet_ptr->x, ha_gyro_packet_ptr->y, ha_gyro_packet_ptr->z );
-
-			//std::cout << gyro_buff << std::endl;
 		}
 		else
 		{
@@ -367,8 +366,6 @@ Core::graphic_thread( )
 		if( ha_accel_packet_ptr != nullptr )
 		{
 			snprintf( accel_buff, sizeof( accel_buff ), "Accel : %d ; %d, %d", ha_accel_packet_ptr->x, ha_accel_packet_ptr->y, ha_accel_packet_ptr->z );
-
-			//std::cout << accel_buff << std::endl;
 		}
 		else
 		{
@@ -383,8 +380,6 @@ Core::graphic_thread( )
 		if( ha_odo_packet_ptr != nullptr )
 		{
 			snprintf( odo_buff, sizeof( odo_buff ), "ODO -> RF : %d ; RR : %d ; RL : %d, FL : %d", ha_odo_packet_ptr->fr, ha_odo_packet_ptr->rr, ha_odo_packet_ptr->rl, ha_odo_packet_ptr->fl );
-
-			//std::cout << odo_buff << std::endl;
 
 		}
 		else
@@ -1813,28 +1808,28 @@ void Core::send_remote_can_packet( ComSimuCanMessageType message_type )
 
 		if( com_simu_remote_status_.pad_up )
 		{
-			std::cout << "com_simu_remote_status_.pad_up" << std::endl;
+			// std::cout << "com_simu_remote_status_.pad_up" << std::endl;
 
 			directional_cross = ( directional_cross | ( 0x01 << 3 ) );
 		}
 
 		if( com_simu_remote_status_.pad_left )
 		{
-			std::cout << "com_simu_remote_status_.pad_left" << std::endl;
+			// std::cout << "com_simu_remote_status_.pad_left" << std::endl;
 
 			directional_cross = ( directional_cross | ( 0x01 << 4 ) );
 		}
 
 		if( com_simu_remote_status_.pad_right )
 		{
-			std::cout << "com_simu_remote_status_.pad_right" << std::endl;
+			// std::cout << "com_simu_remote_status_.pad_right" << std::endl;
 
 			directional_cross = ( directional_cross | ( 0x01 << 5 ) );
 		}
 
 		if( com_simu_remote_status_.pad_down )
 		{
-			std::cout << "com_simu_remote_status_.pad_down" << std::endl;
+			// std::cout << "com_simu_remote_status_.pad_down" << std::endl;
 
 			directional_cross = ( directional_cross | ( 0x01 << 6 ) );
 		}
