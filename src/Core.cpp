@@ -1430,32 +1430,26 @@ void Core::com_simu_read_serial_thread_function( )
 	int posInEntete = 0;
 	char motors[ 3 ] = { 0 };
 
-	int serialPort = serialport_init( "/dev/ttyS0", 9600 );
+	int serialPort = serialport_init( "/tmp/ttyS1", 9600 );
 
 	if( serialPort == -1 )
 	{
-		std::cout << "/dev/ttyS0 not available trying /tmp/ttyS1" << std::endl;
-
-		serialPort = serialport_init( "/tmp/ttyS1", 9600 );
-
-		if( serialPort == -1 )
-		{
-			std::cout << "/tmp/ttyS1 failed too !" << std::endl;
-		}
-		else
-		{
-			std::cout << "connected to /tmp/ttyS1" << std::endl;
-		}
+		std::cout << "/tmp/ttyS1 failed too !" << std::endl;
 	}
 	else
 	{
-		std::cout << "connected to /dev/ttyS0" << std::endl;
+		std::cout << "connected to /tmp/ttyS1" << std::endl;
 	}
 
 	while ( 1 )
 	{
-		if ( read( serialPort, b, 1 ) > 0 )
+		ssize_t serial_read_size = read( serialPort, b, 1 );
+
+		if ( serial_read_size > 0 )
 		{
+
+			// std::cout << "serial_read_size : " << (int)serial_read_size << std::endl;
+
 			com_simu_serial_connected_ = true;
 
 			if ( posInEntete == 2 )
@@ -1464,7 +1458,7 @@ void Core::com_simu_read_serial_thread_function( )
 
 				if ( motorNumber == 2 )
 				{
-					std::cout << "ha motors created : " << static_cast<int>( motors[ 2 ] ) << " " << static_cast<int>( motors[ 1 ] ) << std::endl;
+					// std::cout << "ha motors created : " << static_cast<int>( motors[ 2 ] ) << " " << static_cast<int>( motors[ 1 ] ) << std::endl;
 
 					HaMotorsPacketPtr haMotorsPacketPtr = std::make_shared<HaMotorsPacket>( motors[ 2 ], motors[ 1 ] );
 
@@ -1803,9 +1797,11 @@ void Core::com_simu_read_can_thread_function( )
 				}
 				else if( ( ( frame.can_id ) >> 7 ) == CAN_ID_TELECO )
 				{
+					std::cout << "CAN_ID_TELECO" << std::endl;
+
 					if( ( ( frame.can_id ) % 16 ) == CAN_TELECO_NUM_VERSION )
 					{
-						// std::cout << "setting teleco act : " << static_cast<int>( frame.data[ 6 ] ) << " self_id : " << static_cast<int>(  frame.data[ 7 ] ) << std::endl;
+						std::cout << "setting teleco act : " << static_cast<int>( frame.data[ 6 ] ) << " self_id : " << static_cast<int>(  frame.data[ 7 ] ) << std::endl;
 
 						com_simu_remote_status_.teleco_self_id_6 = frame.data[ 7 ];
 
