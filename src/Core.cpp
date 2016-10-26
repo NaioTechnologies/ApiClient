@@ -42,7 +42,8 @@ Core::Core( ) :
 		last_motor_time_{ 0L },
 		imageNaioCodec_{ },
 		last_image_received_time_{ 0 },
-		com_simu_can_connected_{ false }
+		com_simu_can_connected_{ false },
+		com_simu_serial_connected_{ false }
 {
 	uint8_t fake = 0;
 
@@ -244,6 +245,8 @@ void Core::server_read_thread( )
 
 	serverReadthreadStarted_ = false;
 	stopServerReadThreadAsked_= false;
+
+	std::cout << "Stopping server read thread !" << std::endl;
 }
 
 // #################################################
@@ -483,6 +486,8 @@ Core::graphic_thread( )
 	exitSDL();
 
 	std::cout << "Stopping main thread." << std::endl;
+
+	(void)( system( "pkill socat" ) + 1 );
 }
 
 // #################################################
@@ -1007,7 +1012,7 @@ Core::manageSDLKeyboard()
 void
 Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 {
-	//std::cout << "Packet received id : " << static_cast<int>( packetPtr->getPacketId() ) << std::endl;
+	// std::cout << "Packet received id : " << static_cast<int>( packetPtr->getPacketId() ) << std::endl;
 
 	if( std::dynamic_pointer_cast<HaLidarPacket>( packetPtr )  )
 	{
@@ -1111,7 +1116,7 @@ void Core::image_server_thread( )
 
 	if ( image_socket_desc_ == -1 )
 	{
-		std::cout << "Could not create socket" << std::endl;
+		std::cout << "Could not create image socket" << std::endl;
 	}
 
 	imageServer.sin_addr.s_addr = inet_addr( hostAdress_.c_str() );
@@ -1343,27 +1348,43 @@ void Core::image_preparer_thread( )
 //
 void Core::server_write_thread( )
 {
+	std::cout << "Staring server write thread." << std::endl;
+
 	stopServerWriteThreadAsked_ = false;
 	serverWriteThreadStarted_ = true;
 
-	for( int i = 0 ; i < 100 ; i++ )
-	{
-		ApiMotorsPacketPtr first_packet = std::make_shared<ApiMotorsPacket>( 0, 0 );
-		cl_copy::BufferUPtr first_buffer = first_packet->encode();
-		write( socket_desc_, first_buffer->data(), first_buffer->size() );
-	}
+//	for( int i = 0 ; i < 100 ; i++ )
+//	{
+//		ApiMotorsPacketPtr first_packet = std::make_shared<ApiMotorsPacket>( 0, 0 );
+//		cl_copy::BufferUPtr first_buffer = first_packet->encode();
+//		write( socket_desc_, first_buffer->data(), first_buffer->size() );
+//	}
 
 	while( not stopServerWriteThreadAsked_ )
 	{
 		sendPacketListAccess_.lock();
 
-		for( auto&& packet : sendPacketList_ )
+		//std::cout << "server_write_thread com_simu_serial_connected_ : " << (int)com_simu_serial_connected_ << std::endl;
+
+		if( socketConnected_ )
 		{
-			cl_copy::BufferUPtr buffer = packet->encode();
+			if ( not com_simu_serial_connected_ )
+			{
+				HaMotorsPacketPtr motor_packet = std::make_shared<HaMotorsPacket>( 0, 0 );
 
-			int sentSize = (int)write( socket_desc_, buffer->data(), buffer->size() );
+				sendPacketList_.push_back( motor_packet );
+			}
 
-			(void)sentSize;
+			for ( auto &&packet : sendPacketList_ )
+			{
+				cl_copy::BufferUPtr buffer = packet->encode();
+
+				int sentSize = (int) write( socket_desc_, buffer->data(), buffer->size() );
+
+				(void) sentSize;
+
+				//std::cout << "server_write_thread : " << sentSize << std::endl;
+			}
 		}
 
 		sendPacketList_.clear();
@@ -1375,6 +1396,8 @@ void Core::server_write_thread( )
 
 	stopServerWriteThreadAsked_ = false;
 	serverWriteThreadStarted_ = false;
+
+	std::cout << "Stopping server write thread." << std::endl;
 }
 
 // #################################################
@@ -1399,26 +1422,49 @@ void Core::com_simu_create_serial_thread_function( )
 //
 void Core::com_simu_read_serial_thread_function( )
 {
+	std::cout << "Staring read serial thread." << std::endl;
+
 	unsigned char b[200];
 
 	int motorNumber;
 	int posInEntete = 0;
 	char motors[ 3 ] = { 0 };
 
-	int serialPort = serialport_init( "/tmp/ttyS1", 9600 );
-	SOCKET sockSerialSimu = openSocketClient( COM_SIMU_DEFAULT_SIMU_IP.data() , COM_SIMU_DEFAULT_SIMU_PORT );
+	int serialPort = serialport_init( "/dev/ttyS0", 9600 );
+
+	if( serialPort == -1 )
+	{
+		std::cout << "/dev/ttyS0 not available trying /tmp/ttyS1" << std::endl;
+
+		serialPort = serialport_init( "/tmp/ttyS1", 9600 );
+
+		if( serialPort == -1 )
+		{
+			std::cout << "/tmp/ttyS1 failed too !" << std::endl;
+		}
+		else
+		{
+			std::cout << "connected to /tmp/ttyS1" << std::endl;
+		}
+	}
+	else
+	{
+		std::cout << "connected to /dev/ttyS0" << std::endl;
+	}
 
 	while ( 1 )
 	{
 		if ( read( serialPort, b, 1 ) > 0 )
 		{
+			com_simu_serial_connected_ = true;
+
 			if ( posInEntete == 2 )
 			{
 				motors[ motorNumber ] = ( ( ( char ) b[ 0 ] ) * 2 ) - 128;
 
 				if ( motorNumber == 2 )
 				{
-					// std::cout << "ha motors created : " << static_cast<int>( motors[ 2 ] ) << " " << static_cast<int>( motors[ 1 ] ) << std::endl;
+					std::cout << "ha motors created : " << static_cast<int>( motors[ 2 ] ) << " " << static_cast<int>( motors[ 1 ] ) << std::endl;
 
 					HaMotorsPacketPtr haMotorsPacketPtr = std::make_shared<HaMotorsPacket>( motors[ 2 ], motors[ 1 ] );
 
@@ -1456,6 +1502,8 @@ void Core::com_simu_read_serial_thread_function( )
 			}
 		}
 	}
+
+	std::cout << "Stopping read serial thread." << std::endl;
 }
 
 // #################################################

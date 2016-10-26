@@ -338,6 +338,8 @@ private:
 	std::thread com_simu_read_can_thread_;
 
 	COM_SIMU_IHM_BUTTON_STATUS com_simu_ihm_button_status_;
+
+	bool com_simu_serial_connected_;
 };
 
 #endif
