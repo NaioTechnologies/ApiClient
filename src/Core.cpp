@@ -1797,7 +1797,7 @@ void Core::com_simu_read_can_thread_function( )
 				}
 				else if( ( ( frame.can_id ) >> 7 ) == CAN_ID_TELECO )
 				{
-					std::cout << "CAN_ID_TELECO" << std::endl;
+					// std::cout << "CAN_ID_TELECO" << std::endl;
 
 					if( ( ( frame.can_id ) % 16 ) == CAN_TELECO_NUM_VERSION )
 					{
@@ -1812,7 +1812,7 @@ void Core::com_simu_read_can_thread_function( )
 		}
 		else
 		{
-			std::this_thread::sleep_for( std::chrono::milliseconds( 50 ) );
+			std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
 		}
 	}
 }
