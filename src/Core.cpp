@@ -1192,8 +1192,7 @@ void Core::image_server_read_thread( )
 					{
 						ApiStereoCameraPacketPtr api_stereo_camera_packet_ptr = std::dynamic_pointer_cast<ApiStereoCameraPacket>( packetPtr );
 
-						milliseconds now_ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
-						last_image_received_time_ = static_cast<int64_t>( now_ms.count() );
+						last_image_received_time_ = get_now_ms();
 
 						com_simu_image_to_core_buffer_access_.lock();
 
