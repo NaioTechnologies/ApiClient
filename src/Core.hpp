@@ -224,9 +224,17 @@ private:
 
 	void com_simu_read_can_thread_function( );
 
+	void com_simu_image_to_core_read_thread_function( ) ;
+	void com_simu_image_to_core_write_thread_function( ) ;
+
+
 	void send_remote_can_packet( ComSimuCanMessageType message_type );
 
 	void send_keypad_can_packet( );
+
+	int64_t get_now_ms();
+
+	void com_simu_image_to_core_client_disconnected();
 
 private:
 	// thread part
@@ -341,6 +349,19 @@ private:
 	COM_SIMU_IHM_BUTTON_STATUS com_simu_ihm_button_status_;
 
 	bool com_simu_serial_connected_;
+
+	// Image to core bridge
+	bool com_simu_image_to_core_client_connected_;
+	std::mutex com_simu_image_to_core_socket_access_;
+	int com_simu_image_to_core_server_socket_;
+	int com_simu_image_to_core_client_socket_;
+	std::thread	com_simu_image_to_core_read_thread_;
+	std::thread	com_simu_image_to_core_write_thread_;
+	uint64_t com_simu_image_to_core_last_activity_;
+
+	std::mutex com_simu_image_to_core_buffer_access_;
+	cl_copy::BufferUPtr com_simu_image_to_core_buffer_;
+	bool com_simu_image_to_core_buffer_updated_;
 };
 
 #endif

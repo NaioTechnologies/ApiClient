@@ -19,6 +19,7 @@
 #include <sys/fcntl.h>
 #include <linux/can.h>
 #include <linux/can/raw.h>
+#include "DriverSocket.hpp"
 
 using namespace std;
 using namespace std::chrono;
@@ -43,7 +44,9 @@ Core::Core( ) :
 		imageNaioCodec_{ },
 		last_image_received_time_{ 0 },
 		com_simu_can_connected_{ false },
-		com_simu_serial_connected_{ false }
+		com_simu_serial_connected_{ false },
+		com_simu_image_to_core_client_connected_{ false },
+		com_simu_image_to_core_buffer_updated_{ false }
 {
 	uint8_t fake = 0;
 
@@ -163,7 +166,6 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 
 	imageServerThread_ = std::thread( &Core::image_server_thread, this );
 
-
 	// com_simu
 	com_simu_create_virtual_can( );
 
@@ -180,6 +182,13 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 	com_simu_read_can_thread_ = std::thread( &Core::com_simu_read_can_thread_function, this );
 
 	com_simu_remote_thread_= std::thread( &Core::com_simu_remote_thread_function, this );
+
+	// bridge simulatos images
+	com_simu_image_to_core_read_thread_ = std::thread( &Core::com_simu_image_to_core_read_thread_function, this );
+	com_simu_image_to_core_write_thread_ = std::thread( &Core::com_simu_image_to_core_write_thread_function, this );
+
+	(void)com_simu_image_to_core_read_thread_;
+	(void)com_simu_image_to_core_write_thread_;
 }
 
 // #################################################
@@ -1168,7 +1177,7 @@ void Core::image_server_read_thread( )
 		// any time : read incoming messages.
 		int readSize = (int) read( image_socket_desc_, receiveBuffer, 4000000 );
 
-		if (readSize > 0)
+		if ( readSize > 0 )
 		{
 			bool packetHeaderDetected = false;
 
@@ -1185,6 +1194,21 @@ void Core::image_server_read_thread( )
 
 						milliseconds now_ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
 						last_image_received_time_ = static_cast<int64_t>( now_ms.count() );
+
+						com_simu_image_to_core_buffer_access_.lock();
+
+						size_t buffer_size = api_stereo_camera_packet_ptr->dataBuffer->size();
+
+						com_simu_image_to_core_buffer_ = cl_copy::unique_buffer( buffer_size );
+
+						for( int i = 0 ; i < buffer_size ; i++ )
+						{
+							(*com_simu_image_to_core_buffer_)[ i ] = api_stereo_camera_packet_ptr->dataBuffer->at( i );
+						}
+
+						com_simu_image_to_core_buffer_updated_ = true;
+
+						com_simu_image_to_core_buffer_access_.unlock();
 
 						api_stereo_camera_packet_ptr_access_.lock();
 						api_stereo_camera_packet_ptr_ = api_stereo_camera_packet_ptr;
@@ -1977,3 +2001,113 @@ void Core::send_keypad_can_packet( )
 
 	com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_IHM, ComSimuCanMessageType::CAN_IHM_BUT, keypad_data, 1 );
 }
+
+// #################################################
+//
+int64_t Core::get_now_ms( )
+{
+	milliseconds now_ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
+	int64_t now = static_cast<int64_t>( now_ms.count() );
+
+	return  now;
+}
+
+
+// #################################################
+//
+void Core::com_simu_image_to_core_client_disconnected()
+{
+	close( com_simu_image_to_core_client_socket_ );
+
+	com_simu_image_to_core_client_connected_ = false;
+}
+
+// #################################################
+//
+void Core::com_simu_image_to_core_read_thread_function( )
+{
+	unsigned char receivedBuffer[4096];
+
+	while( true )
+	{
+		if( com_simu_image_to_core_client_connected_ )
+		{
+			com_simu_image_to_core_socket_access_.lock();
+
+			int size = static_cast<int>( read( com_simu_image_to_core_client_socket_, receivedBuffer, 4096 ) );
+
+			com_simu_image_to_core_socket_access_.unlock();
+
+			if ( size > 0 )
+			{
+				com_simu_image_to_core_last_activity_ = get_now_ms();
+			}
+		}
+
+		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 10 ) ) );
+	}
+}
+
+// #################################################
+//
+void Core::com_simu_image_to_core_write_thread_function( )
+{
+	std::cout << "core image listening on port 5557." << std::endl;
+
+	com_simu_image_to_core_server_socket_ = openSocketServer( 5557 );
+
+	while( true )
+	{
+		if( not com_simu_image_to_core_client_connected_ and com_simu_image_to_core_server_socket_ > 0 )
+		{
+			com_simu_image_to_core_socket_access_.lock();
+
+			com_simu_image_to_core_client_socket_ = waitConnect( com_simu_image_to_core_server_socket_ );
+
+			com_simu_image_to_core_socket_access_.unlock();
+		}
+
+		if( com_simu_image_to_core_client_socket_ > 0 )
+		{
+			com_simu_image_to_core_client_connected_ = true;
+
+			std::cout << "core image socket connected." << std::endl;
+
+			com_simu_image_to_core_last_activity_ = get_now_ms();
+		}
+
+		if( com_simu_image_to_core_client_connected_ )
+		{
+			if ( ( get_now_ms() - com_simu_image_to_core_last_activity_ ) > 5000 )
+			{
+				std::cout << "core image client disconnected." << std::endl;
+
+				com_simu_image_to_core_client_disconnected();
+			}
+		}
+
+		if( com_simu_image_to_core_client_connected_ )
+		{
+			com_simu_image_to_core_buffer_access_.lock();
+
+			if( com_simu_image_to_core_buffer_updated_ )
+			{
+				com_simu_image_to_core_buffer_updated_ = false;
+
+				com_simu_image_to_core_socket_access_.lock();
+
+				ssize_t size = write( com_simu_image_to_core_client_socket_, com_simu_image_to_core_buffer_->data(), com_simu_image_to_core_buffer_->size() );
+
+				(void)size;
+
+				com_simu_image_to_core_socket_access_.unlock();
+			}
+
+			com_simu_image_to_core_buffer_access_.unlock();
+		}
+
+		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 10 ) ) );
+	}
+}
+
+
