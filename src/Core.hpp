@@ -227,6 +227,7 @@ private:
 	void send_remote_can_packet( ComSimuCanMessageType message_type );
 
 	void send_keypad_can_packet( );
+
 private:
 	// thread part
 	bool stopThreadAsked_;
