@@ -154,6 +154,8 @@ void Core::stopServerReadThread( )
 // thread function
 void Core::server_read_thread( )
 {
+    using namespace std::chrono_literals;
+
 	std::cout << "Starting server read thread !" << std::endl;
 
 	uint8_t receiveBuffer[ 4000000 ];
@@ -179,6 +181,8 @@ void Core::server_read_thread( )
 
 				naioCodec_.currentBasePacketList.clear();
 			}
+
+            std::this_thread::sleep_for( 20ms );
 		}
 	}
 
