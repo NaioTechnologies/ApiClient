@@ -647,18 +647,25 @@ void Core::draw_images( )
 
 	last_images_buffer_access_.lock();
 
-	if( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES or last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB )
+	uint8_t last_images_buffer_to_display[ 752 * 480 * 3 * 2 ];
+
+	for( uint i = 0 ; i < ( 752 * 480 * 3 * 2 ) ; i++ )
 	{
-		left_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_, 752, 480, 3 * 8, 752 * 3, rmask, gmask, bmask, amask );
-		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + ( 752 * 480 * 3 ), 752, 480, 3 * 8, 752 * 3, rmask, gmask, bmask, amask );
-	}
-	else
-	{
-		left_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_, 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
-		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + ( 376 * 240 * 3 ), 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
+		last_images_buffer_to_display[ i ] = last_images_buffer_[ i ];
 	}
 
 	last_images_buffer_access_.unlock();
+
+	if( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES or last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB )
+	{
+		left_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_to_display, 752, 480, 3 * 8, 752 * 3, rmask, gmask, bmask, amask );
+		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_to_display + ( 752 * 480 * 3 ), 752, 480, 3 * 8, 752 * 3, rmask, gmask, bmask, amask );
+	}
+	else
+	{
+		left_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_to_display, 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
+		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_to_display + ( 376 * 240 * 3 ), 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
+	}
 
 	SDL_Rect left_rect = { 400 - 376 - 10, 485, 376, 240 };
 
@@ -671,6 +678,8 @@ void Core::draw_images( )
 	SDL_RenderCopy( renderer_, left_texture, NULL, &left_rect );
 
 	SDL_RenderCopy( renderer_, right_texture, NULL, &right_rect );
+
+
 }
 
 // #################################################
@@ -1254,94 +1263,17 @@ void Core::image_server_write_thread( )
 //
 void Core::image_preparer_thread( )
 {
-	Bytef zlibUncompressedBytes[ 4000000l ];
-
 	while ( true )
 	{
-		std::this_thread::sleep_for( std::chrono::milliseconds(static_cast<int64_t>( IMAGE_PREPARING_RATE_MS ) ) );
-
-		ApiStereoCameraPacketPtr api_stereo_camera_packet_ptr = nullptr;
-
 		api_stereo_camera_packet_ptr_access_.lock();
 
-		if ( api_stereo_camera_packet_ptr_ != nullptr )
+		if ( api_stereo_camera_packet_ptr_ == nullptr )
 		{
-			last_image_type_ = api_stereo_camera_packet_ptr_->imageType;
-
-			api_stereo_camera_packet_ptr = api_stereo_camera_packet_ptr_;
-
-			api_stereo_camera_packet_ptr_ = nullptr;
-		}
-
-		api_stereo_camera_packet_ptr_access_.unlock();
-
-		if ( api_stereo_camera_packet_ptr != nullptr )
-		{
-			cl_copy::BufferUPtr bufferUPtr = std::move( api_stereo_camera_packet_ptr->dataBuffer );
-
-			if ( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB or
-				 last_image_type_ == ApiStereoCameraPacket::ImageType::RECTIFIED_COLORIZED_IMAGES_ZLIB )
-			{
-				uLong sizeDataUncompressed = 0l;
-
-				uncompress( (Bytef *) zlibUncompressedBytes, &sizeDataUncompressed, bufferUPtr->data(),
-						   static_cast<uLong>( bufferUPtr->size() ) );
-
-				last_images_buffer_access_.lock();
-
-				if ( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB )
-				{
-					// don't know how to display 8bits image with sdl...
-					for ( uint i = 0; i < sizeDataUncompressed; i++ )
-					{
-						last_images_buffer_[ ( i * 3 ) + 0 ] = zlibUncompressedBytes[ i ];
-						last_images_buffer_[ ( i * 3 ) + 1 ] = zlibUncompressedBytes[ i ];
-						last_images_buffer_[ ( i * 3 ) + 2 ] = zlibUncompressedBytes[ i ];
-					}
-				}
-				else
-				{
-					for ( uint i = 0; i < sizeDataUncompressed; i++ )
-					{
-						last_images_buffer_[ i ] = zlibUncompressedBytes[i];
-					}
-				}
-
-				last_images_buffer_access_.unlock();
-			}
-			else
-			{
-				last_images_buffer_access_.lock();
-
-				if ( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES )
-				{
-					// don't know how to display 8bits image with sdl...
-					for (uint i = 0; i < bufferUPtr->size(); i++)
-					{
-						last_images_buffer_[ ( i * 3 ) + 0 ] = bufferUPtr->at( i );
-						last_images_buffer_[ ( i * 3 ) + 1 ] = bufferUPtr->at( i );
-						last_images_buffer_[ ( i * 3 ) + 2 ] = bufferUPtr->at( i );
-					}
-				}
-				else
-				{
-					for ( uint i = 0; i < bufferUPtr->size(); i++ )
-					{
-						last_images_buffer_[ i ] = bufferUPtr->at( i );
-					}
-				}
-
-				last_images_buffer_access_.unlock();
-			}
-		}
-		else
-		{
-			milliseconds now_ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
-			int64_t now = static_cast<int64_t>( now_ms.count() );
+			int64_t now = get_now_ms();
 
 			int64_t diff_time = now - last_image_received_time_;
 
-			if( diff_time > TIME_BEFORE_IMAGE_LOST_MS )
+			if ( diff_time > TIME_BEFORE_IMAGE_LOST_MS )
 			{
 				last_image_received_time_ = now;
 
@@ -1349,14 +1281,14 @@ void Core::image_preparer_thread( )
 
 				last_images_buffer_access_.lock();
 
-				for ( int i = 0 ; i < 721920 * 3 ; i++ )
+				for ( int i = 0; i < 721920 * 3; i++ )
 				{
-					if( fake >= 255 )
+					if ( fake >= 255 )
 					{
 						fake = 0;
 					}
 
-					last_images_buffer_[ i ] = fake;
+					last_images_buffer_[i] = fake;
 
 					fake++;
 				}
@@ -1364,7 +1296,130 @@ void Core::image_preparer_thread( )
 				last_images_buffer_access_.unlock();
 			}
 		}
+		else
+		{
+			last_image_type_ = api_stereo_camera_packet_ptr_->imageType;
+
+			size_t buffer_size = api_stereo_camera_packet_ptr_->dataBuffer->size();
+
+			cl_copy::BufferUPtr prepared_image_buffer = cl_copy::unique_buffer(buffer_size);
+
+			for (int i = 0; i < buffer_size; i++)
+			{
+				(*prepared_image_buffer)[i] = api_stereo_camera_packet_ptr_->dataBuffer->at(i);
+			}
+
+			last_images_buffer_access_.lock();
+
+			// don't know how to display 8bits image with sdl...
+			for (uint i = 0; i < prepared_image_buffer->size(); i++)
+			{
+				last_images_buffer_[(i * 3) + 0] = prepared_image_buffer->at(i);
+				last_images_buffer_[(i * 3) + 1] = prepared_image_buffer->at(i);
+				last_images_buffer_[(i * 3) + 2] = prepared_image_buffer->at(i);
+			}
+
+			last_images_buffer_access_.unlock();
+
+			api_stereo_camera_packet_ptr_ = nullptr;
+		}
+
+		api_stereo_camera_packet_ptr_access_.unlock();
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int64_t>( 20 )));
 	}
+
+//		Bytef zlibUncompressedBytes[ 4000000l ];
+//		if ( api_stereo_camera_packet_ptr != nullptr )
+//		{
+//			cl_copy::BufferUPtr bufferUPtr = std::move( api_stereo_camera_packet_ptr->dataBuffer );
+//
+//			if ( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB or
+//				 last_image_type_ == ApiStereoCameraPacket::ImageType::RECTIFIED_COLORIZED_IMAGES_ZLIB )
+//			{
+//				uLong sizeDataUncompressed = 0l;
+//
+//				uncompress( (Bytef *) zlibUncompressedBytes, &sizeDataUncompressed, bufferUPtr->data(),
+//						   static_cast<uLong>( bufferUPtr->size() ) );
+//
+//				last_images_buffer_access_.lock();
+//
+//				if ( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB )
+//				{
+//					// don't know how to display 8bits image with sdl...
+//					for ( uint i = 0; i < sizeDataUncompressed; i++ )
+//					{
+//						last_images_buffer_[ ( i * 3 ) + 0 ] = zlibUncompressedBytes[ i ];
+//						last_images_buffer_[ ( i * 3 ) + 1 ] = zlibUncompressedBytes[ i ];
+//						last_images_buffer_[ ( i * 3 ) + 2 ] = zlibUncompressedBytes[ i ];
+//					}
+//				}
+//				else
+//				{
+//					for ( uint i = 0; i < sizeDataUncompressed; i++ )
+//					{
+//						last_images_buffer_[ i ] = zlibUncompressedBytes[i];
+//					}
+//				}
+//
+//				last_images_buffer_access_.unlock();
+//			}
+//			else
+//			{
+//				last_images_buffer_access_.lock();
+//
+//				if ( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES )
+//				{
+//					// don't know how to display 8bits image with sdl...
+//					for (uint i = 0; i < bufferUPtr->size(); i++)
+//					{
+//						last_images_buffer_[ ( i * 3 ) + 0 ] = bufferUPtr->at( i );
+//						last_images_buffer_[ ( i * 3 ) + 1 ] = bufferUPtr->at( i );
+//						last_images_buffer_[ ( i * 3 ) + 2 ] = bufferUPtr->at( i );
+//					}
+//				}
+//				else
+//				{
+//					for ( uint i = 0; i < bufferUPtr->size(); i++ )
+//					{
+//						last_images_buffer_[ i ] = bufferUPtr->at( i );
+//					}
+//				}
+//
+//				last_images_buffer_access_.unlock();
+//			}
+//		}
+//		else
+//		{
+//			milliseconds now_ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
+//			int64_t now = static_cast<int64_t>( now_ms.count() );
+//
+//			int64_t diff_time = now - last_image_received_time_;
+//
+//			if( diff_time > TIME_BEFORE_IMAGE_LOST_MS )
+//			{
+//				last_image_received_time_ = now;
+//
+//				uint8_t fake = 0;
+//
+//				last_images_buffer_access_.lock();
+//
+//				for ( int i = 0 ; i < 721920 * 3 ; i++ )
+//				{
+//					if( fake >= 255 )
+//					{
+//						fake = 0;
+//					}
+//
+//					last_images_buffer_[ i ] = fake;
+//
+//					fake++;
+//				}
+//
+//				last_images_buffer_access_.unlock();
+//			}
+//		}
+//	}
 }
 
 // #################################################
@@ -2043,7 +2098,7 @@ void Core::com_simu_image_to_core_read_thread_function( )
 			}
 		}
 
-		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 10 ) ) );
+		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 100 ) ) );
 	}
 }
 
@@ -2066,7 +2121,7 @@ void Core::com_simu_image_to_core_write_thread_function( )
 			com_simu_image_to_core_socket_access_.unlock();
 		}
 
-		if( com_simu_image_to_core_client_socket_ > 0 )
+		if( com_simu_image_to_core_client_socket_ > 0 and not com_simu_image_to_core_client_connected_ )
 		{
 			com_simu_image_to_core_client_connected_ = true;
 
@@ -2089,6 +2144,15 @@ void Core::com_simu_image_to_core_write_thread_function( )
 		{
 			com_simu_image_to_core_buffer_access_.lock();
 
+//			com_simu_image_to_core_buffer_updated_ = true;
+//
+//			com_simu_image_to_core_buffer_ = cl_copy::unique_buffer( 742*480*2 );
+//
+//			for( int i = 0 ; i < 742*480*2 ; i++ )
+//			{
+//				(*com_simu_image_to_core_buffer_)[ i ] = static_cast<uint8_t>( i );
+//			}
+
 			if( com_simu_image_to_core_buffer_updated_ )
 			{
 				com_simu_image_to_core_buffer_updated_ = false;
@@ -2105,7 +2169,7 @@ void Core::com_simu_image_to_core_write_thread_function( )
 			com_simu_image_to_core_buffer_access_.unlock();
 		}
 
-		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 10 ) ) );
+		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 1 ) ) );
 	}
 }
 
