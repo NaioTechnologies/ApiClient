@@ -189,6 +189,9 @@ private:
 	int8_t last_right_motor_;
 
 	uint64_t last_image_received_time_;
+
+	uint8_t sdl_images_buffer_[ 752 * 480 * 2 * 3 ];
+
 };
 
 #endif
