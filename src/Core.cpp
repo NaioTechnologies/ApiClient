@@ -1183,8 +1183,12 @@ void Core::image_server_read_thread( )
 
 	while( !stopImageServerReadThreadAsked_ )
 	{
+		image_socket_desc_access_.lock();
+
 		// any time : read incoming messages.
 		int readSize = (int) read( image_socket_desc_, receiveBuffer, 4000000 );
+
+		image_socket_desc_access_.unlock();
 
 		if ( readSize > 0 )
 		{
@@ -1249,7 +1253,19 @@ void Core::image_server_write_thread( )
 
 			cl_copy::BufferUPtr buffer = api_watchdog_packet_ptr->encode();
 
-			write( image_socket_desc_, buffer->data(), buffer->size() );
+			int total_written_bytes = 0;
+			int sentSize = 0;
+
+			image_socket_desc_access_.lock();
+
+			while( total_written_bytes < buffer->size() and sentSize >= 0 )
+			{
+				sentSize = (int) write( image_socket_desc_, buffer->data() + total_written_bytes, buffer->size() - total_written_bytes );
+
+				total_written_bytes = total_written_bytes + sentSize;
+			}
+
+			image_socket_desc_access_.unlock();
 		}
 
 		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( IMAGE_SERVER_WATCHDOG_SENDING_RATE_MS ) ) );
@@ -1365,9 +1381,15 @@ void Core::server_write_thread( )
 			{
 				cl_copy::BufferUPtr buffer = packet->encode();
 
-				int sentSize = (int) write( socket_desc_, buffer->data(), buffer->size() );
+				int total_written_bytes = 0;
+				int sentSize = 0;
 
-				(void) sentSize;
+				while( total_written_bytes < buffer->size() and sentSize >= 0 )
+				{
+					sentSize = (int) write(socket_desc_, buffer->data() + total_written_bytes, buffer->size() - total_written_bytes );
+
+					total_written_bytes = total_written_bytes + sentSize;
+				}
 
 				//std::cout << "server_write_thread : " << sentSize << std::endl;
 			}
@@ -2067,9 +2089,15 @@ void Core::com_simu_image_to_core_write_thread_function( )
 
 				com_simu_image_to_core_socket_access_.lock();
 
-				ssize_t size = write( com_simu_image_to_core_client_socket_, com_simu_image_to_core_buffer_->data(), com_simu_image_to_core_buffer_->size() );
+				int total_written_bytes = 0;
+				int sentSize = 0;
 
-				(void)size;
+				while( total_written_bytes < com_simu_image_to_core_buffer_->size() and sentSize >= 0 )
+				{
+					sentSize = (int) write(com_simu_image_to_core_client_socket_, com_simu_image_to_core_buffer_->data() + total_written_bytes, com_simu_image_to_core_buffer_->size() - total_written_bytes );
+
+					total_written_bytes = total_written_bytes + sentSize;
+				}
 
 				com_simu_image_to_core_socket_access_.unlock();
 			}

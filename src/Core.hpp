@@ -162,6 +162,8 @@ public:
 	const std::string COM_SIMU_DEFAULT_SIMU_IP = "192.168.1.106";
 	const int COM_SIMU_DEFAULT_SIMU_PORT = 5555;
 
+	const int COM_SIMU_RAW_IMAGE_PORT = 5558;
+
 	const int COM_SIMU_PORT_CORE_LIDAR = 2213;
 
 	const int64_t COM_SIMU_REMOTE_SEND_RATE_MS = 100;
@@ -362,6 +364,8 @@ private:
 	std::mutex com_simu_image_to_core_buffer_access_;
 	cl_copy::BufferUPtr com_simu_image_to_core_buffer_;
 	bool com_simu_image_to_core_buffer_updated_;
+
+	std::mutex image_socket_desc_access_;
 };
 
 #endif
