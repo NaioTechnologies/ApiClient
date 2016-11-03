@@ -361,9 +361,11 @@ private:
 	std::thread	com_simu_image_to_core_write_thread_;
 	uint64_t com_simu_image_to_core_last_activity_;
 
-	std::mutex com_simu_image_to_core_buffer_access_;
-	cl_copy::BufferUPtr com_simu_image_to_core_buffer_;
-	bool com_simu_image_to_core_buffer_updated_;
+	std::mutex image_buffer_for_ozcore_access_;
+	//cl_copy::BufferUPtr com_simu_image_to_core_buffer_;
+	uint64_t com_simu_image_to_core_buffer_updated_time_;
+
+	char image_buffer_for_ozcore[ 721920 ];
 
 	std::mutex image_socket_desc_access_;
 };

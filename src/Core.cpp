@@ -46,7 +46,7 @@ Core::Core( ) :
 		com_simu_can_connected_{ false },
 		com_simu_serial_connected_{ false },
 		com_simu_image_to_core_client_connected_{ false },
-		com_simu_image_to_core_buffer_updated_{ false }
+		com_simu_image_to_core_buffer_updated_time_{ 0 }
 {
 	uint8_t fake = 0;
 
@@ -164,7 +164,7 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 
 	serverWriteThread_ = std::thread( &Core::server_write_thread, this );
 
-	imageServerThread_ = std::thread( &Core::image_server_thread, this );
+	//imageServerThread_ = std::thread( &Core::image_server_thread, this );
 
 	// com_simu
 	com_simu_create_virtual_can( );
@@ -1208,20 +1208,18 @@ void Core::image_server_read_thread( )
 
 						last_image_received_time_ = get_now_ms();
 
-						com_simu_image_to_core_buffer_access_.lock();
+						image_buffer_for_ozcore_access_.lock();
 
 						size_t buffer_size = api_stereo_camera_packet_ptr->dataBuffer->size();
 
-						com_simu_image_to_core_buffer_ = cl_copy::unique_buffer( buffer_size );
-
-						for( int i = 0 ; i < buffer_size ; i++ )
+						for( int i = 0 ; i < 721920 ; i++ )
 						{
-							(*com_simu_image_to_core_buffer_)[ i ] = api_stereo_camera_packet_ptr->dataBuffer->at( i );
+							image_buffer_for_ozcore[ i ] = api_stereo_camera_packet_ptr->dataBuffer->at( i );
 						}
 
-						com_simu_image_to_core_buffer_updated_ = true;
+						com_simu_image_to_core_buffer_updated_time_ = get_now_ms();
 
-						com_simu_image_to_core_buffer_access_.unlock();
+						image_buffer_for_ozcore_access_.unlock();
 
 						api_stereo_camera_packet_ptr_access_.lock();
 						api_stereo_camera_packet_ptr_ = api_stereo_camera_packet_ptr;
@@ -2060,6 +2058,10 @@ void Core::com_simu_image_to_core_write_thread_function( )
 {
 	std::cout << "core image listening on port 5558." << std::endl;
 
+	int8_t local_buffer[ 4000000 ];
+	uint64_t com_simu_image_to_core_buffer_updated_time = 0;
+	ssize_t local_buffer_size = 0;
+
 	com_simu_image_to_core_server_socket_ = openSocketServer( 5558 );
 
 	while( true )
@@ -2094,22 +2096,40 @@ void Core::com_simu_image_to_core_write_thread_function( )
 
 		if( com_simu_image_to_core_client_connected_ )
 		{
-			com_simu_image_to_core_buffer_access_.lock();
+			bool send_image = false;
 
-			if( com_simu_image_to_core_buffer_updated_ )
+			image_buffer_for_ozcore_access_.lock();
+
+			if( com_simu_image_to_core_buffer_updated_time_ != com_simu_image_to_core_buffer_updated_time )
 			{
-				com_simu_image_to_core_buffer_updated_ = false;
+				com_simu_image_to_core_buffer_updated_time = com_simu_image_to_core_buffer_updated_time_;
 
-				com_simu_image_to_core_socket_access_.lock();
+				local_buffer_size = 721920;
 
+				for (uint i = 0; i < local_buffer_size; i++)
+				{
+					local_buffer[ i ] = image_buffer_for_ozcore[ i ];
+				}
+
+				send_image = true;
+			}
+
+			image_buffer_for_ozcore_access_.unlock();
+
+			if( send_image == true )
+			{
 				int total_written_bytes = 0;
 				int sentSize = 0;
 				int nb_tries = 0;
 				int max_tries = 50;
 
-				while( total_written_bytes < com_simu_image_to_core_buffer_->size() and nb_tries < max_tries )
+				while( total_written_bytes < local_buffer_size and nb_tries < max_tries )
 				{
-					sentSize = (int) send( com_simu_image_to_core_client_socket_, com_simu_image_to_core_buffer_->data() + total_written_bytes, com_simu_image_to_core_buffer_->size() - total_written_bytes, 0 );
+					com_simu_image_to_core_socket_access_.lock();
+
+					sentSize = (int) send( com_simu_image_to_core_client_socket_, local_buffer + total_written_bytes, local_buffer_size - total_written_bytes, 0 );
+
+					com_simu_image_to_core_socket_access_.unlock();
 
 					if( sentSize < 0 )
 					{
@@ -2122,14 +2142,8 @@ void Core::com_simu_image_to_core_write_thread_function( )
 						nb_tries = 0;
 					}
 				}
-
-				com_simu_image_to_core_socket_access_.unlock();
 			}
-
-			com_simu_image_to_core_buffer_access_.unlock();
 		}
-
-		//std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 1 ) ) );
 	}
 }
 
