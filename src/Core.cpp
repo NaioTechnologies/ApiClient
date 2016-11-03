@@ -1186,7 +1186,8 @@ void Core::image_server_read_thread( )
 		image_socket_desc_access_.lock();
 
 		// any time : read incoming messages.
-		int readSize = (int) read( image_socket_desc_, receiveBuffer, 4000000 );
+		//int readSize = (int) read( image_socket_desc_, receiveBuffer, 4000000 );
+		int readSize = (int)recv( image_socket_desc_, receiveBuffer, 16384, MSG_DONTWAIT );
 
 		image_socket_desc_access_.unlock();
 
@@ -1231,8 +1232,7 @@ void Core::image_server_read_thread( )
 				imageNaioCodec_.currentBasePacketList.clear();
 			}
 		}
-
-		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( WAIT_SERVER_IMAGE_TIME_RATE_MS ) ) );
+		//std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( WAIT_SERVER_IMAGE_TIME_RATE_MS ) ) );
 	}
 
 	imageServerReadthreadStarted_ = false;
@@ -1255,14 +1255,25 @@ void Core::image_server_write_thread( )
 
 			int total_written_bytes = 0;
 			int sentSize = 0;
+			int nb_tries = 0;
+			int max_tries = 50;
 
 			image_socket_desc_access_.lock();
 
-			while( total_written_bytes < buffer->size() and sentSize >= 0 )
+			while( total_written_bytes < buffer->size() and nb_tries < max_tries )
 			{
 				sentSize = (int) write( image_socket_desc_, buffer->data() + total_written_bytes, buffer->size() - total_written_bytes );
 
-				total_written_bytes = total_written_bytes + sentSize;
+				if( sentSize < 0 )
+				{
+					nb_tries++;
+					std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 10 ) ) );
+				}
+				else
+				{
+					total_written_bytes = total_written_bytes + sentSize;
+					nb_tries = 0;
+				}
 			}
 
 			image_socket_desc_access_.unlock();
@@ -1383,12 +1394,23 @@ void Core::server_write_thread( )
 
 				int total_written_bytes = 0;
 				int sentSize = 0;
+				int nb_tries = 0;
+				int max_tries = 50;
 
-				while( total_written_bytes < buffer->size() and sentSize >= 0 )
+				while( total_written_bytes < buffer->size() and nb_tries < max_tries )
 				{
-					sentSize = (int) write(socket_desc_, buffer->data() + total_written_bytes, buffer->size() - total_written_bytes );
+					sentSize = (int) send(socket_desc_, buffer->data() + total_written_bytes, buffer->size() - total_written_bytes, 0 );
 
-					total_written_bytes = total_written_bytes + sentSize;
+					if( sentSize < 0 )
+					{
+						nb_tries++;
+						std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 10 ) ) );
+					}
+					else
+					{
+						total_written_bytes = total_written_bytes + sentSize;
+						nb_tries = 0;
+					}
 				}
 
 				//std::cout << "server_write_thread : " << sentSize << std::endl;
@@ -2036,9 +2058,9 @@ void Core::com_simu_image_to_core_read_thread_function( )
 //
 void Core::com_simu_image_to_core_write_thread_function( )
 {
-	std::cout << "core image listening on port 5557." << std::endl;
+	std::cout << "core image listening on port 5558." << std::endl;
 
-	com_simu_image_to_core_server_socket_ = openSocketServer( 5557 );
+	com_simu_image_to_core_server_socket_ = openSocketServer( 5558 );
 
 	while( true )
 	{
@@ -2074,15 +2096,6 @@ void Core::com_simu_image_to_core_write_thread_function( )
 		{
 			com_simu_image_to_core_buffer_access_.lock();
 
-//			com_simu_image_to_core_buffer_updated_ = true;
-//
-//			com_simu_image_to_core_buffer_ = cl_copy::unique_buffer( 742*480*2 );
-//
-//			for( int i = 0 ; i < 742*480*2 ; i++ )
-//			{
-//				(*com_simu_image_to_core_buffer_)[ i ] = static_cast<uint8_t>( i );
-//			}
-
 			if( com_simu_image_to_core_buffer_updated_ )
 			{
 				com_simu_image_to_core_buffer_updated_ = false;
@@ -2091,12 +2104,23 @@ void Core::com_simu_image_to_core_write_thread_function( )
 
 				int total_written_bytes = 0;
 				int sentSize = 0;
+				int nb_tries = 0;
+				int max_tries = 50;
 
-				while( total_written_bytes < com_simu_image_to_core_buffer_->size() and sentSize >= 0 )
+				while( total_written_bytes < com_simu_image_to_core_buffer_->size() and nb_tries < max_tries )
 				{
-					sentSize = (int) write(com_simu_image_to_core_client_socket_, com_simu_image_to_core_buffer_->data() + total_written_bytes, com_simu_image_to_core_buffer_->size() - total_written_bytes );
+					sentSize = (int) send( com_simu_image_to_core_client_socket_, com_simu_image_to_core_buffer_->data() + total_written_bytes, com_simu_image_to_core_buffer_->size() - total_written_bytes, 0 );
 
-					total_written_bytes = total_written_bytes + sentSize;
+					if( sentSize < 0 )
+					{
+						nb_tries++;
+						std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 10 ) ) );
+					}
+					else
+					{
+						total_written_bytes = total_written_bytes + sentSize;
+						nb_tries = 0;
+					}
 				}
 
 				com_simu_image_to_core_socket_access_.unlock();
@@ -2105,7 +2129,7 @@ void Core::com_simu_image_to_core_write_thread_function( )
 			com_simu_image_to_core_buffer_access_.unlock();
 		}
 
-		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 1 ) ) );
+		//std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 1 ) ) );
 	}
 }
 

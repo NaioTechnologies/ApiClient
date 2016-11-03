@@ -7,23 +7,86 @@
 
 int main( int argc, char** argv )
 {
-//	const rlim_t kStackSize = 64L * 1024L * 1024L;   // min stack size = 64 Mb
-//	struct rlimit rl;
-//	int result;
+//	struct sockaddr_in imageServer;
 //
-//	result = getrlimit(RLIMIT_STACK, &rl);
-//	if (result == 0)
+//	//Create socket
+//	int image_socket_desc_ = socket( AF_INET, SOCK_STREAM, 0 );
+//
+//	if ( image_socket_desc_ == -1 )
 //	{
-//		if (rl.rlim_cur < kStackSize)
+//		std::cout << "NetStereoImporter Could not create socket" << std::endl;
+//	}
+//
+//	imageServer.sin_addr.s_addr = inet_addr( "192.168.1.106" );
+//	imageServer.sin_family = AF_INET;
+//	imageServer.sin_port = htons( static_cast<uint16_t>( 5558 ) );
+//
+//	//Connect to remote server
+//	if ( connect( image_socket_desc_, ( struct sockaddr * ) &imageServer, sizeof( imageServer ) ) < 0 )
+//	{
+//		puts( "NetStereoImporter image connect error" );
+//	}
+//	else
+//	{
+//		puts( "NetStereoImporter Connected image\n" );
+//	}
+//
+//	std::cout << "NetStereoImporter socket created" << std::endl;
+//
+//	char receive_buffer[ 4000000 ];
+//
+//	char protocol_start[ 6 ] = { 'N','A','I','O','0','0' };
+//	uint protocol_state = 0;
+//
+//	int nb_bytes = 0;
+//
+//	ssize_t send_size = send( image_socket_desc_, protocol_start, 6, 0 );
+//	(void)send_size;
+//
+//	int last_read_size = 4096;
+//
+//	while( true )
+//	{
+//		//ssize_t readSize = recv( image_socket_desc_, receive_buffer, last_read_size, MSG_WAITALL );
+//		ssize_t readSize = recv( image_socket_desc_, receive_buffer, 512, MSG_DONTWAIT );
+//
+//		last_read_size = ( last_read_size + last_read_size + readSize ) / 3;
+//
+//		if( last_read_size <= 0 )
 //		{
-//			rl.rlim_cur = kStackSize;
-//			result = setrlimit(RLIMIT_STACK, &rl);
-//			if (result != 0)
+//			last_read_size = 1;
+//		}
+//
+//		if ( readSize == 0 )
+//		{
+//		//	std::cout << "socket error readSize : " << static_cast<int>( readSize ) << std::endl;
+//			//std::this_thread::sleep_for( std::chrono::microseconds( 10 ) );
+//		//	exit(0);
+//		}
+//		else if ( readSize < 0 )
+//		{
+//			//std::cout << "socket error readSize : " << static_cast<int>( readSize ) << std::endl;
+//			//std::this_thread::sleep_for( std::chrono::microseconds( 50 ) );
+//		}
+//		else if ( readSize >= 0 )
+//		{
+//			//std::cout << "readSize : " << static_cast<int>( readSize ) << std::endl;
+//
+//			for ( uint received_buffer_idx = 0 ; received_buffer_idx < readSize ; received_buffer_idx++ )
 //			{
-//				fprintf(stderr, "setrlimit returned result = %d\n", result);
+//				if( receive_buffer[ received_buffer_idx ] != 0 )
+//				{
+//					std::cout << "nb_bytes : " << nb_bytes << " : " << static_cast<int>( receive_buffer[ received_buffer_idx ] ) << std::endl;
+//				}
+//
+//				nb_bytes++;
 //			}
+//
+////			ssize_t send_size = send( image_socket_desc_, protocol_start, 1, 0 );
+////			(void)send_size;
 //		}
 //	}
+
 
 	std::string hostAdress = DEFAULT_HOST_ADDRESS;
 
