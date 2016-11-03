@@ -577,20 +577,35 @@ void Core::draw_images( )
 		Uint32 amask = 0xff000000;
 	#endif
 
+
+//	const uint image_size_8 = 752 * 480;
+//	const uint image_size_24 = image_size_8 * 3;
+//	const uint all_image_size_8 = image_size_8 * 2;
+//	const uint all_image_size_24 = image_size_24 * 2;
+//	uint image_size = 752 * 480 * 3;
+//	uint all_image_size = 752 * 480 * 3;
+
+	uint all_raw_images_size = 752 * 480 * 3 * 2;
+
 	last_images_buffer_access_.lock();
 
-	if( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES or last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB )
+	for( uint i = 0 ; i < all_raw_images_size ; i++ )
 	{
-		left_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_, 752, 480, 3 * 8, 752 * 3, rmask, gmask, bmask, amask );
-		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + ( 752 * 480 * 3 ), 752, 480, 3 * 8, 752 * 3, rmask, gmask, bmask, amask );
-	}
-	else
-	{
-		left_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_, 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
-		right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_ + ( 376 * 240 * 3 ), 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
+		sdl_images_buffer_[ i ] = last_images_buffer_[ i ];
 	}
 
 	last_images_buffer_access_.unlock();
+
+	if( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES or last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB )
+	{
+		left_image = SDL_CreateRGBSurfaceFrom( sdl_images_buffer_, 752, 480, 3 * 8, 752 * 3, rmask, gmask, bmask, amask );
+		right_image = SDL_CreateRGBSurfaceFrom( sdl_images_buffer_ + ( 752 * 480 * 3 ), 752, 480, 3 * 8, 752 * 3, rmask, gmask, bmask, amask );
+	}
+	else
+	{
+		left_image = SDL_CreateRGBSurfaceFrom( sdl_images_buffer_, 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
+		right_image = SDL_CreateRGBSurfaceFrom( sdl_images_buffer_ + ( 376 * 240 * 3 ), 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
+	}
 
 	SDL_Rect left_rect = { 400 - 376 - 10, 485, 376, 240 };
 
@@ -873,7 +888,9 @@ void Core::image_server_thread( )
 
 	imageServer.sin_addr.s_addr = inet_addr( hostAdress_.c_str() );
 	imageServer.sin_family = AF_INET;
+
 	imageServer.sin_port = htons( static_cast<uint16_t>( hostPort_ + 2 ) );
+	//imageServer.sin_port = htons( static_cast<uint16_t>( 5558 ) );
 
 	//Connect to remote server
 	if ( connect( image_socket_desc_, ( struct sockaddr * ) &imageServer, sizeof( imageServer ) ) < 0 )
