@@ -2218,76 +2218,99 @@ void Core::simaltoz_image_displayer_starter_thread_function()
 //
 void Core::start_simaltoz_image_display()
 {
+	simulatoz_image_actionner_access_.lock();
+
 	uint64_t now = get_now_ms();
 
-	if( now - last_image_displayer_action_time_ms_ > 500 )
+	if( now - last_image_displayer_action_time_ms_ > 1000 )
 	{
 		last_image_displayer_action_time_ms_ = now;
 
-		if( imageServerReadthreadStarted_ == false and imageServerWriteThreadStarted_ == false and imagePreparedThreadStarted_ == false )
+		if( imageServerThreadStarted_ == false or imageServerReadthreadStarted_ == false and imageServerWriteThreadStarted_ == false and imagePreparedThreadStarted_ == false )
 		{
 			asked_simaltoz_image_displayer_start_ = true;
 		}
 	}
+
+	std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 100 ) ) );
+
+	simulatoz_image_actionner_access_.unlock();
 }
 
 // #################################################
 //
 void Core::stop_simaltoz_image_display()
 {
+	simulatoz_image_actionner_access_.lock();
+
 	uint64_t now = get_now_ms();
 
-	if( now - last_image_displayer_action_time_ms_ > 500 )
+	if( now - last_image_displayer_action_time_ms_ > 1000 )
 	{
 		last_image_displayer_action_time_ms_ = now;
 
 		std::cout << "Stopping image displayer." << std::endl;
 
-		stopImageServerReadThreadAsked_ = true;
-		stopImageServerWriteThreadAsked_ = true;
-		stopImagePreparerThreadAsked_ = true;
-		stopImageServerThreadAsked_ = true;
-
-		int cpt = 0;
-
-		while( ( imageServerThreadStarted_ or imageServerReadthreadStarted_ or imageServerWriteThreadStarted_ or imagePreparedThreadStarted_ ) and cpt < 100  )
+		if( imageServerThreadStarted_ and imageServerReadthreadStarted_ and imageServerWriteThreadStarted_ and imagePreparedThreadStarted_ )
 		{
-			std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 1 ) ) );
-			cpt++;
-		}
+			stopImageServerReadThreadAsked_ = true;
+			stopImageServerWriteThreadAsked_ = true;
+			stopImagePreparerThreadAsked_ = true;
+			stopImageServerThreadAsked_ = true;
 
-		close( image_socket_desc_ );
+			int cpt = 0;
 
-		uint8_t fake = 0;
-
-		for ( int i = 0 ; i < 4000000 ; i++ )
-		{
-			if( fake >= 255 )
+			while( ( imageServerThreadStarted_ or imageServerReadthreadStarted_ or imageServerWriteThreadStarted_ or imagePreparedThreadStarted_ ) and cpt < 100  )
 			{
-				fake = 0;
+				std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 1 ) ) );
+				cpt++;
 			}
 
-			last_images_buffer_[ i ] = fake;
+			close( image_socket_desc_ );
 
-			fake++;
+			uint8_t fake = 0;
+
+			for ( int i = 0 ; i < 4000000 ; i++ )
+			{
+				if( fake >= 255 )
+				{
+					fake = 0;
+				}
+
+				last_images_buffer_[ i ] = fake;
+
+				fake++;
+			}
+
+			std::cout << "joinning threads";
+
+			std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
+
+			imageServerReadThread_.join();
+
+			std::cout << ".";
+
+			std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
+
+			image_prepared_thread_.join();
+
+			std::cout << ".";
+
+			std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
+
+			imageServerWriteThread_.join();
+
+			std::cout << ".";
+
+			std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
+
+			imageServerThread_.join();
+
+			std::cout << std::endl;
 		}
-
-		std::cout << "joinning threads";
-
-		imageServerReadThread_.join();
-
-		std::cout << ".";
-
-		image_prepared_thread_.join();
-
-		std::cout << ".";
-
-		imageServerWriteThread_.join();
-
-		std::cout << ".";
-
-		imageServerThread_.join();
-
-		std::cout << std::endl;
 	}
+
+	std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
+
+	simulatoz_image_actionner_access_.unlock();
 }

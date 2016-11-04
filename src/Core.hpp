@@ -380,6 +380,7 @@ private:
 	uint64_t last_image_displayer_action_time_ms_;
 	std::thread	simaltoz_image_displayer_starter_thread_;
 	bool asked_simaltoz_image_displayer_start_;
+	std::mutex simulatoz_image_actionner_access_;
 };
 
 #endif
