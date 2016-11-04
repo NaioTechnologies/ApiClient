@@ -266,7 +266,7 @@ Core::graphic_thread( )
 	std::cout << "Starting main thread." << std::endl;
 
     // create graphics
-    screen_ = initSDL( "Api Client", 800, 730 );
+    screen_ = initSDL( "Simulatoz Bridge", 800, 730 );
 
 	// prepare timers for real time operations
 	milliseconds ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
