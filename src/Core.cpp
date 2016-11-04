@@ -46,7 +46,10 @@ Core::Core( ) :
 		com_simu_can_connected_{ false },
 		com_simu_serial_connected_{ false },
 		com_simu_image_to_core_client_connected_{ false },
-		com_simu_image_to_core_buffer_updated_time_{ 0 }
+		com_simu_image_to_core_buffer_updated_time_{ 0 },
+		display_simuloz_camera_{ false },
+		last_image_displayer_action_time_ms_{ 0 },
+		asked_simaltoz_image_displayer_start_{ false }
 {
 	uint8_t fake = 0;
 
@@ -95,6 +98,15 @@ Core::Core( ) :
 	com_simu_ihm_button_status_.plus = false;
 	com_simu_ihm_button_status_.left = false;
 	com_simu_ihm_button_status_.right = false;
+
+	imageServerReadthreadStarted_ = false;
+	stopImageServerReadThreadAsked_ = false;
+
+	imageServerWriteThreadStarted_ = false;
+	stopImageServerWriteThreadAsked_ = false;
+
+	imagePreparedThreadStarted_ = false;
+	stopImagePreparerThreadAsked_ = false;
 }
 
 // #################################################
@@ -164,6 +176,7 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 
 	serverWriteThread_ = std::thread( &Core::server_write_thread, this );
 
+	simaltoz_image_displayer_starter_thread_ = std::thread( &Core::simaltoz_image_displayer_starter_thread_function, this );
 	//imageServerThread_ = std::thread( &Core::image_server_thread, this );
 
 	// com_simu
@@ -298,6 +311,8 @@ Core::graphic_thread( )
 				sendPacketList_.emplace_back( api_command_packet_stereo_on );
 				sendPacketListAccess_.unlock();
 
+				start_simaltoz_image_display( );
+
 				asked_start_video_ = false;
 			}
 
@@ -308,6 +323,8 @@ Core::graphic_thread( )
 				sendPacketListAccess_.lock();
 				sendPacketList_.emplace_back( api_command_packet_stereo_off );
 				sendPacketListAccess_.unlock();
+
+				stop_simaltoz_image_display( );
 
 				asked_stop_video_ = false;
 			}
@@ -1118,6 +1135,8 @@ void Core::joinServerReadThread()
 //
 void Core::image_server_thread( )
 {
+	std::cout << "Staring image_server_thread." << std::endl;
+
 	imageServerReadthreadStarted_ = false;
 	imageServerWriteThreadStarted_ = false;
 
@@ -1171,17 +1190,26 @@ void Core::image_server_thread( )
 
 	imageServerThreadStarted_ = false;
 	stopImageServerThreadAsked_ = false;
+
+
+
+	std::cout << ".";
+
+	std::cout << "Exiting image_server_thread" << std::endl;
 }
 
 // #################################################
 //
 void Core::image_server_read_thread( )
 {
+	std::cout << "Staring image_server_read_thread." << std::endl;
+
 	imageServerReadthreadStarted_ = true;
+	stopImageServerReadThreadAsked_ = false;
 
 	uint8_t receiveBuffer[ 4000000 ];
 
-	while( !stopImageServerReadThreadAsked_ )
+	while( not stopImageServerReadThreadAsked_ )
 	{
 		image_socket_desc_access_.lock();
 
@@ -1235,15 +1263,20 @@ void Core::image_server_read_thread( )
 
 	imageServerReadthreadStarted_ = false;
 	stopImageServerReadThreadAsked_= false;
+
+	std::cout << "Exiting image_server_read_thread" << std::endl;
 }
 
 // #################################################
 // use only for server socket watchdog
 void Core::image_server_write_thread( )
 {
-	imageServerWriteThreadStarted_ = true;
+	std::cout << "Staring image_server_write_thread." << std::endl;
 
-	while( !stopImageServerWriteThreadAsked_ )
+	imageServerWriteThreadStarted_ = true;
+	stopImageServerWriteThreadAsked_ = false;
+
+	while( not stopImageServerWriteThreadAsked_ )
 	{
 		if( imageSocketConnected_ )
 		{
@@ -1282,13 +1315,21 @@ void Core::image_server_write_thread( )
 
 	imageServerWriteThreadStarted_ = false;
 	stopImageServerWriteThreadAsked_ = false;
+
+	std::cout << "Exiting image_server_write_thread" << std::endl;
 }
 
 // #################################################
 //
 void Core::image_preparer_thread( )
 {
-	while ( true )
+	std::cout << "Staring image_preparer_thread." << std::endl;
+
+	imagePreparedThreadStarted_ = true;
+	stopImagePreparerThreadAsked_ = false;
+
+
+	while ( not stopImagePreparerThreadAsked_ )
 	{
 		api_stereo_camera_packet_ptr_access_.lock();
 
@@ -1353,13 +1394,18 @@ void Core::image_preparer_thread( )
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int64_t>( 20 )));
 	}
+
+	stopImagePreparerThreadAsked_ = false;
+	imagePreparedThreadStarted_ = false;
+
+	std::cout << "Exiting image_preparer_thread" << std::endl;
 }
 
 // #################################################
 //
 void Core::server_write_thread( )
 {
-	std::cout << "Staring server write thread." << std::endl;
+	std::cout << "Staring server_write_thread." << std::endl;
 
 	stopServerWriteThreadAsked_ = false;
 	serverWriteThreadStarted_ = true;
@@ -2148,3 +2194,100 @@ void Core::com_simu_image_to_core_write_thread_function( )
 }
 
 
+
+// #################################################
+//
+void Core::simaltoz_image_displayer_starter_thread_function()
+{
+	while( true )
+	{
+		if( asked_simaltoz_image_displayer_start_ )
+		{
+			std::cout << "Starting image displayer." << std::endl;
+
+			imageServerThread_ = std::thread( &Core::image_server_thread, this );
+
+			asked_simaltoz_image_displayer_start_ = false;
+		}
+
+		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 100 ) ) );
+	}
+}
+
+// #################################################
+//
+void Core::start_simaltoz_image_display()
+{
+	uint64_t now = get_now_ms();
+
+	if( now - last_image_displayer_action_time_ms_ > 500 )
+	{
+		last_image_displayer_action_time_ms_ = now;
+
+		if( imageServerReadthreadStarted_ == false and imageServerWriteThreadStarted_ == false and imagePreparedThreadStarted_ == false )
+		{
+			asked_simaltoz_image_displayer_start_ = true;
+		}
+	}
+}
+
+// #################################################
+//
+void Core::stop_simaltoz_image_display()
+{
+	uint64_t now = get_now_ms();
+
+	if( now - last_image_displayer_action_time_ms_ > 500 )
+	{
+		last_image_displayer_action_time_ms_ = now;
+
+		std::cout << "Stopping image displayer." << std::endl;
+
+		stopImageServerReadThreadAsked_ = true;
+		stopImageServerWriteThreadAsked_ = true;
+		stopImagePreparerThreadAsked_ = true;
+		stopImageServerThreadAsked_ = true;
+
+		int cpt = 0;
+
+		while( ( imageServerThreadStarted_ or imageServerReadthreadStarted_ or imageServerWriteThreadStarted_ or imagePreparedThreadStarted_ ) and cpt < 100  )
+		{
+			std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 1 ) ) );
+			cpt++;
+		}
+
+		close( image_socket_desc_ );
+
+		uint8_t fake = 0;
+
+		for ( int i = 0 ; i < 4000000 ; i++ )
+		{
+			if( fake >= 255 )
+			{
+				fake = 0;
+			}
+
+			last_images_buffer_[ i ] = fake;
+
+			fake++;
+		}
+
+		std::cout << "joinning threads";
+
+		imageServerReadThread_.join();
+
+		std::cout << ".";
+
+		image_prepared_thread_.join();
+
+		std::cout << ".";
+
+		imageServerWriteThread_.join();
+
+		std::cout << ".";
+
+		imageServerThread_.join();
+
+		std::cout << std::endl;
+	}
+}

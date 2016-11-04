@@ -238,6 +238,10 @@ private:
 
 	void com_simu_image_to_core_client_disconnected();
 
+	void simaltoz_image_displayer_starter_thread_function();
+	void start_simaltoz_image_display();
+	void stop_simaltoz_image_display();
+
 private:
 	// thread part
 	bool stopThreadAsked_;
@@ -368,6 +372,14 @@ private:
 	char image_buffer_for_ozcore[ 721920 ];
 
 	std::mutex image_socket_desc_access_;
+
+	bool display_simuloz_camera_;
+
+	bool stopImagePreparerThreadAsked_;
+	bool imagePreparedThreadStarted_;
+	uint64_t last_image_displayer_action_time_ms_;
+	std::thread	simaltoz_image_displayer_starter_thread_;
+	bool asked_simaltoz_image_displayer_start_;
 };
 
 #endif
