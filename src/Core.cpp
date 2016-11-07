@@ -119,8 +119,9 @@ Core::~Core( )
 // #################################################
 //
 void
-Core::init( std::string hostAdress, uint16_t hostPort )
+Core::init( bool no_gui, std::string hostAdress, uint16_t hostPort )
 {
+	no_gui_ = no_gui;
 	hostAdress_ = hostAdress;
 	hostPort_ = hostPort;
 
@@ -170,13 +171,20 @@ Core::init( std::string hostAdress, uint16_t hostPort )
 	}
 
 	// creates main thread
-	graphicThread_ = std::thread( &Core::graphic_thread, this );
+	if( not no_gui_ )
+	{
+		graphicThread_ = std::thread( &Core::graphic_thread, this );
+	}
 
 	serverReadThread_ = std::thread( &Core::server_read_thread, this );
 
 	serverWriteThread_ = std::thread( &Core::server_write_thread, this );
 
-	simaltoz_image_displayer_starter_thread_ = std::thread( &Core::simaltoz_image_displayer_starter_thread_function, this );
+	if( not no_gui_ )
+	{
+		simaltoz_image_displayer_starter_thread_ = std::thread( &Core::simaltoz_image_displayer_starter_thread_function, this );
+	}
+
 	//imageServerThread_ = std::thread( &Core::image_server_thread, this );
 
 	// com_simu

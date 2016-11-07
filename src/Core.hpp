@@ -174,7 +174,7 @@ public:
 	~Core( );
 
 	// launch core
-	void init( std::string hostAdress_, uint16_t hostPort_ );
+	void init( bool no_gui, std::string hostAdress_, uint16_t hostPort_ );
 
 	// thread management
 	void stop( );
@@ -243,6 +243,8 @@ private:
 	void stop_simaltoz_image_display();
 
 private:
+	bool no_gui_;
+
 	// thread part
 	bool stopThreadAsked_;
 	bool threadStarted_;

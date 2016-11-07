@@ -105,8 +105,21 @@ int main( int argc, char** argv )
 		hostPort = atoi( argv[2] );
 	}
 
+	bool no_gui = false;
+
+	for( int i = 0 ; i < argc ; i++ )
+	{
+		std::string nogui = argv[ i ];
+
+		if( nogui == "nogui" )
+		{
+			no_gui = true;
+		}
+	}
+
+
 	// start main core thread
-	core->init( hostAdress, static_cast<uint16_t>( hostPort ) );
+	core->init( no_gui, hostAdress, static_cast<uint16_t>( hostPort ) );
 
 	// waits the thread exits
 	core->joinMainThread();
