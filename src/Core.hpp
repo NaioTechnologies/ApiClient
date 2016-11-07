@@ -195,15 +195,15 @@ private:
 	void image_server_write_thread( );
 
 	// communications
-	void manageReceivedPacket( BaseNaio01PacketPtr packetPtr );
+	void manage_received_packet(BaseNaio01PacketPtr packetPtr);
 
 	// graph
-	SDL_Window *initSDL(const char* name, int szX, int szY );
+	SDL_Window *init_sdl(const char *name, int szX, int szY);
 
 	void exitSDL();
 
-	void readSDLKeyboard();
-	bool manageSDLKeyboard();
+	void read_sdl_keyboard();
+	bool manage_sdl_keyboard();
 
 	void draw_robot();
 	void draw_lidar( uint16_t lidar_distance_[271] );
@@ -247,33 +247,30 @@ private:
 	bool graphical_display_on_;
 
 	// thread part
-
 	bool main_thread_started_;
 	std::thread main_thread_;
 
-	//std::thread graphicThread_;
-
-	bool stopServerReadThreadAsked_;
-	bool serverReadthreadStarted_;
+	bool stop_server_read_thread_asked_;
+	bool server_read_thread_started_;
 	std::thread serverReadThread_;
 
-	bool stopServerWriteThreadAsked_;
-	bool serverWriteThreadStarted_;
-	std::thread serverWriteThread_;
+	bool stop_server_write_thread_asked_;
+	bool server_write_thread_started_;
+	std::thread server_write_thread_;
 
 	// socket part
-	std::string hostAdress_;
-	uint16_t hostPort_;
+	std::string host_adress_;
+	uint16_t host_port_;
 	int socket_desc_;
-	bool socketConnected_;
+	bool socket_connected_;
 
 	// sdl part
-	int sdlKey_[SDL_NUM_SCANCODES];
+	int sdl_key_[SDL_NUM_SCANCODES];
 
 	// codec part
-	Naio01Codec naioCodec_;
-	std::mutex sendPacketListAccess_;
-	std::vector< BaseNaio01PacketPtr > sendPacketList_;
+	Naio01Codec naio_codec_;
+	std::mutex send_packet_list_access_;
+	std::vector< BaseNaio01PacketPtr > send_packet_list_;
 
 	std::mutex ha_lidar_packet_ptr_access_;
 	HaLidarPacketPtr ha_lidar_packet_ptr_;
@@ -300,7 +297,7 @@ private:
 	ApiStereoCameraPacket::ImageType last_image_type_;
 
 	// ia part
-	ControlType controlType_;
+	ControlType control_type_;
 
 	SDL_Window* screen_;
 	SDL_Renderer* renderer_;
@@ -317,20 +314,20 @@ private:
 	uint64_t last_motor_time_;
 
 	int image_socket_desc_;
-	bool imageSocketConnected_;
-	Naio01Codec imageNaioCodec_;
+	bool image_socket_connected_;
+	Naio01Codec image_naio_codec_;
 
-	bool stopImageServerThreadAsked_;
-	bool imageServerThreadStarted_;
-	std::thread imageServerThread_;
+	bool stop_image_server_thread_asked_;
+	bool image_server_thread_started_;
+	std::thread image_server_thread_;
 
-	bool stopImageServerReadThreadAsked_;
-	bool imageServerReadthreadStarted_;
-	std::thread imageServerReadThread_;
+	bool stop_image_server_read_thread_asked_;
+	bool image_server_read_thread_started_;
+	std::thread image_server_read_thread_;
 
-	bool stopImageServerWriteThreadAsked_;
-	bool imageServerWriteThreadStarted_;
-	std::thread imageServerWriteThread_;
+	bool stop_image_server_write_thread_asked_;
+	bool image_server_write_thread_started_;
+	std::thread image_server_write_thread_;
 
 	uint64_t last_image_received_time_;
 
@@ -380,8 +377,8 @@ private:
 
 	bool display_simuloz_camera_;
 
-	bool stopImagePreparerThreadAsked_;
-	bool imagePreparedThreadStarted_;
+	bool stop_image_preparer_thread_asked_;
+	bool image_prepared_thread_started_;
 	uint64_t last_image_displayer_action_time_ms_;
 	std::thread	simaltoz_image_displayer_starter_thread_;
 	bool asked_simaltoz_image_displayer_start_;

@@ -31,18 +31,18 @@ Core::Core( ) :
 		main_thread_started_{ false },
 		//graphicThread_{ },
 		main_thread_{ },
-		hostAdress_{ "10.0.1.1" },
-		hostPort_{ 5555 },
-		socketConnected_{false},
-		naioCodec_{ },
-		sendPacketList_{ },
+		host_adress_{ "10.0.1.1" },
+		host_port_{ 5555 },
+		socket_connected_{false},
+		naio_codec_{ },
+		send_packet_list_{ },
 		ha_lidar_packet_ptr_{ nullptr },
 		ha_odo_packet_ptr_{ nullptr },
 		api_post_packet_ptr_{nullptr },
 		ha_gps_packet_ptr_{ nullptr },
-		controlType_{ ControlType::CONTROL_TYPE_MANUAL },
+		control_type_{ ControlType::CONTROL_TYPE_MANUAL },
 		last_motor_time_{ 0L },
-		imageNaioCodec_{ },
+		image_naio_codec_{ },
 		last_image_received_time_{ 0 },
 		com_simu_can_connected_{ false },
 		com_simu_serial_connected_{ false },
@@ -100,14 +100,14 @@ Core::Core( ) :
 	com_simu_ihm_button_status_.left = false;
 	com_simu_ihm_button_status_.right = false;
 
-	imageServerReadthreadStarted_ = false;
-	stopImageServerReadThreadAsked_ = false;
+	image_server_read_thread_started_ = false;
+	stop_image_server_read_thread_asked_ = false;
 
-	imageServerWriteThreadStarted_ = false;
-	stopImageServerWriteThreadAsked_ = false;
+	image_server_write_thread_started_ = false;
+	stop_image_server_write_thread_asked_ = false;
 
-	imagePreparedThreadStarted_ = false;
-	stopImagePreparerThreadAsked_ = false;
+	image_prepared_thread_started_ = false;
+	stop_image_preparer_thread_asked_ = false;
 }
 
 // #################################################
@@ -123,18 +123,18 @@ void
 Core::init( bool graphical_display_on, std::string hostAdress, uint16_t hostPort )
 {
 	graphical_display_on_ = graphical_display_on;
-	hostAdress_ = hostAdress;
-	hostPort_ = hostPort;
+	host_adress_ = hostAdress;
+	host_port_ = hostPort;
 
 	stop_main_thread_asked_ = false;
 	main_thread_started_ = false;
-	socketConnected_ = false;
+	socket_connected_ = false;
 
-	imageServerThreadStarted_ = false;
-	stopImageServerThreadAsked_ = false;
+	image_server_thread_started_ = false;
+	stop_image_server_thread_asked_ = false;
 
-	serverReadthreadStarted_ = false;
-	stopServerWriteThreadAsked_ = false;
+	server_read_thread_started_ = false;
+	stop_server_write_thread_asked_ = false;
 
 	main_thread_ = std::thread( &Core::main_thread, this );
 
@@ -171,19 +171,19 @@ Core::init( bool graphical_display_on, std::string hostAdress, uint16_t hostPort
 	else
 	{
 		puts( "Simu Connected\n" );
-		socketConnected_ = true;
+		socket_connected_ = true;
 	}
 
 	serverReadThread_ = std::thread( &Core::server_read_thread, this );
 
-	serverWriteThread_ = std::thread( &Core::server_write_thread, this );
+	server_write_thread_ = std::thread( &Core::server_write_thread, this );
 
 	if( graphical_display_on_ )
 	{
 		simaltoz_image_displayer_starter_thread_ = std::thread( &Core::simaltoz_image_displayer_starter_thread_function, this );
 	}
 
-	//imageServerThread_ = std::thread( &Core::image_server_thread, this );
+	//image_server_thread_ = std::thread( &Core::image_server_thread, this );
 
 	// com_simu
 	com_simu_create_virtual_can( );
@@ -215,7 +215,7 @@ void Core::server_read_thread( )
 
 	uint8_t receiveBuffer[ 4000000 ];
 
-	while( !stopServerReadThreadAsked_ )
+	while( !stop_server_read_thread_asked_ )
 	{
 		// any time : read incoming messages.
 		int readSize = (int) read( socket_desc_, receiveBuffer, 4000000 );
@@ -224,23 +224,23 @@ void Core::server_read_thread( )
 		{
 			bool packetHeaderDetected = false;
 
-			bool atLeastOnePacketReceived = naioCodec_.decode( receiveBuffer, static_cast<uint>( readSize ), packetHeaderDetected );
+			bool atLeastOnePacketReceived = naio_codec_.decode( receiveBuffer, static_cast<uint>( readSize ), packetHeaderDetected );
 
 			// manage received messages
 			if ( atLeastOnePacketReceived == true )
 			{
-				for ( auto &&packetPtr : naioCodec_.currentBasePacketList )
+				for ( auto &&packetPtr : naio_codec_.currentBasePacketList )
 				{
-					manageReceivedPacket( packetPtr );
+					manage_received_packet(packetPtr);
 				}
 
-				naioCodec_.currentBasePacketList.clear();
+				naio_codec_.currentBasePacketList.clear();
 			}
 		}
 	}
 
-	serverReadthreadStarted_ = false;
-	stopServerReadThreadAsked_= false;
+	server_read_thread_started_ = false;
+	stop_server_read_thread_asked_= false;
 
 	std::cout << "Stopping server read thread !" << std::endl;
 }
@@ -283,11 +283,11 @@ Core::graphic_thread( )
 
 	for ( int i = 0 ; i < SDL_NUM_SCANCODES ; i++ )
 	{
-		sdlKey_[i] = 0;
+		sdl_key_[i] = 0;
 	}
 
     // create graphics
-    screen_ = initSDL( "Simulatoz Bridge", 800, 730 );
+    screen_ = init_sdl("Simulatoz Bridge", 800, 730);
 
 	// prepare timers for real time operations
 	milliseconds ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
@@ -312,10 +312,10 @@ Core::graphic_thread( )
 				ApiCommandPacketPtr api_command_packet_zlib_off = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_OFF_IMAGE_ZLIB_COMPRESSION );
 				ApiCommandPacketPtr api_command_packet_stereo_on = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_ON_API_RAW_STEREO_CAMERA_PACKET );
 
-				sendPacketListAccess_.lock();
-				sendPacketList_.emplace_back( api_command_packet_zlib_off );
-				sendPacketList_.emplace_back( api_command_packet_stereo_on );
-				sendPacketListAccess_.unlock();
+				send_packet_list_access_.lock();
+				send_packet_list_.emplace_back( api_command_packet_zlib_off );
+				send_packet_list_.emplace_back( api_command_packet_stereo_on );
+				send_packet_list_access_.unlock();
 
 				start_simaltoz_image_display( );
 
@@ -326,9 +326,9 @@ Core::graphic_thread( )
 			{
 				ApiCommandPacketPtr api_command_packet_stereo_off = std::make_shared<ApiCommandPacket>( ApiCommandPacket::CommandType::TURN_OFF_API_RAW_STEREO_CAMERA_PACKET );
 
-				sendPacketListAccess_.lock();
-				sendPacketList_.emplace_back( api_command_packet_stereo_off );
-				sendPacketListAccess_.unlock();
+				send_packet_list_access_.lock();
+				send_packet_list_.emplace_back( api_command_packet_stereo_off );
+				send_packet_list_access_.unlock();
 
 				stop_simaltoz_image_display( );
 
@@ -336,8 +336,8 @@ Core::graphic_thread( )
 			}
 		}
 
-		readSDLKeyboard();
-		manageSDLKeyboard();
+		read_sdl_keyboard();
+		manage_sdl_keyboard();
 
 		// drawing part.
 		SDL_SetRenderDrawColor( renderer_, 0, 0, 0, 255 ); // the rect color (solid red)
@@ -501,13 +501,13 @@ Core::graphic_thread( )
 		//std::cout << "display time took " << display_time << " ms so wait_time is " << wait_time << " ms " << std::endl;
 
 		// repeat keyboard reading for smoother command inputs
-		readSDLKeyboard();
-		manageSDLKeyboard();
+		read_sdl_keyboard();
+		manage_sdl_keyboard();
 
 		std::this_thread::sleep_for( std::chrono::milliseconds( wait_time / 2 ) );
 
-		readSDLKeyboard();
-		manageSDLKeyboard();
+		read_sdl_keyboard();
+		manage_sdl_keyboard();
 
 		std::this_thread::sleep_for( std::chrono::milliseconds( wait_time / 2 ) );
 	}
@@ -701,7 +701,7 @@ void Core::draw_images( )
 // #################################################
 //
 SDL_Window*
-Core::initSDL( const char* name, int szX, int szY )
+Core::init_sdl(const char *name, int szX, int szY)
 {
 	std::cout << "Init SDL";
 
@@ -752,7 +752,7 @@ Core::exitSDL()
 // #################################################
 //
 void
-Core::readSDLKeyboard()
+Core::read_sdl_keyboard()
 {
 	SDL_Event event;
 
@@ -762,11 +762,11 @@ Core::readSDLKeyboard()
 		{
 			// Cas d'une touche enfoncée
 			case SDL_KEYDOWN:
-				sdlKey_[ event.key.keysym.scancode ] = 1;
+				sdl_key_[ event.key.keysym.scancode ] = 1;
 				break;
 				// Cas d'une touche relâchée
 			case SDL_KEYUP:
-				sdlKey_[ event.key.keysym.scancode ] = 0;
+				sdl_key_[ event.key.keysym.scancode ] = 0;
 				break;
 		}
 	}
@@ -775,35 +775,35 @@ Core::readSDLKeyboard()
 // #################################################
 //
 bool
-Core::manageSDLKeyboard()
+Core::manage_sdl_keyboard()
 {
 	bool keyPressed = false;
 
 	int8_t left = 0;
 	int8_t right = 0;
 
-	if( sdlKey_[ SDL_SCANCODE_ESCAPE ] == 1)
+	if( sdl_key_[ SDL_SCANCODE_ESCAPE ] == 1)
 	{
 		stop_main_thread_asked_ = true;
 
 		return true;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_O ] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_O ] == 1 )
 	{
 		asked_start_video_ = true;
 
 		keyPressed = true;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_F ] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_F ] == 1 )
 	{
 		asked_stop_video_ = true;
 
 		keyPressed = true;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_UP ] == 1 and sdlKey_[ SDL_SCANCODE_LEFT ] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_UP ] == 1 and sdl_key_[ SDL_SCANCODE_LEFT ] == 1 )
 	{
 		com_simu_remote_status_.analog_x = 250;
 		com_simu_remote_status_.analog_y = 5;
@@ -813,7 +813,7 @@ Core::manageSDLKeyboard()
 		keyPressed = true;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_UP ] == 1 and sdlKey_[ SDL_SCANCODE_RIGHT ] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_UP ] == 1 and sdl_key_[ SDL_SCANCODE_RIGHT ] == 1 )
 	{
 		com_simu_remote_status_.analog_x = 250;
 		com_simu_remote_status_.analog_y = 250;
@@ -823,7 +823,7 @@ Core::manageSDLKeyboard()
 		keyPressed = true;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_DOWN ] == 1 and sdlKey_[ SDL_SCANCODE_LEFT ] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_DOWN ] == 1 and sdl_key_[ SDL_SCANCODE_LEFT ] == 1 )
 	{
 		com_simu_remote_status_.analog_x = 5;
 		com_simu_remote_status_.analog_y = 5;
@@ -833,7 +833,7 @@ Core::manageSDLKeyboard()
 		keyPressed = true;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_DOWN ] == 1 and sdlKey_[ SDL_SCANCODE_RIGHT ] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_DOWN ] == 1 and sdl_key_[ SDL_SCANCODE_RIGHT ] == 1 )
 	{
 		com_simu_remote_status_.analog_x = 5;
 		com_simu_remote_status_.analog_y = 250;
@@ -843,7 +843,7 @@ Core::manageSDLKeyboard()
 		keyPressed = true;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_UP ] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_UP ] == 1 )
 	{
 		com_simu_remote_status_.analog_x = 250;
 
@@ -852,7 +852,7 @@ Core::manageSDLKeyboard()
 		keyPressed = true;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_DOWN ] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_DOWN ] == 1 )
 	{
 		com_simu_remote_status_.analog_x = 5;
 
@@ -861,7 +861,7 @@ Core::manageSDLKeyboard()
 		keyPressed = true;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_LEFT ] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_LEFT ] == 1 )
 	{
 		com_simu_remote_status_.analog_y = 5;
 
@@ -870,7 +870,7 @@ Core::manageSDLKeyboard()
 		keyPressed = true;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_RIGHT ] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_RIGHT ] == 1 )
 	{
 		com_simu_remote_status_.analog_y = 250;
 
@@ -883,28 +883,28 @@ Core::manageSDLKeyboard()
 	//         COM_SIMU
 	// ########################
 
-	if( sdlKey_[ SDL_SCANCODE_KP_7 ] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_KP_7 ] == 1 )
 	{
 		com_simu_remote_status_.secu_left = true;
 
 		keyPressed = true;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_KP_9 ] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_KP_9 ] == 1 )
 	{
 		com_simu_remote_status_.secu_right = true;
 
 		keyPressed = true;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_KP_1 ] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_KP_1 ] == 1 )
 	{
 		com_simu_remote_status_.arr_left = true;
 
 		keyPressed = true;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_KP_3 ] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_KP_3 ] == 1 )
 	{
 		com_simu_remote_status_.arr_right = true;
 
@@ -912,35 +912,35 @@ Core::manageSDLKeyboard()
 	}
 
 
-	if( sdlKey_[ SDL_SCANCODE_KP_4 ] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_KP_4 ] == 1 )
 	{
 		com_simu_remote_status_.pad_left = true;
 
 		keyPressed = true;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_KP_6 ] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_KP_6 ] == 1 )
 	{
 		com_simu_remote_status_.pad_right = true;
 
 		keyPressed = true;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_KP_8 ] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_KP_8 ] == 1 )
 	{
 		com_simu_remote_status_.pad_up = true;
 
 		keyPressed = true;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_KP_2 ] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_KP_2 ] == 1 )
 	{
 		com_simu_remote_status_.pad_down = true;
 
 		keyPressed = true;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_PAGEUP ] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_PAGEUP ] == 1 )
 	{
 		com_simu_ihm_button_status_.plus = true;
 
@@ -951,7 +951,7 @@ Core::manageSDLKeyboard()
 		com_simu_ihm_button_status_.plus = false;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_PAGEDOWN] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_PAGEDOWN] == 1 )
 	{
 		com_simu_ihm_button_status_.minus = true;
 
@@ -962,7 +962,7 @@ Core::manageSDLKeyboard()
 		com_simu_ihm_button_status_.minus = false;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_HOME] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_HOME] == 1 )
 	{
 		com_simu_ihm_button_status_.left = true;
 
@@ -973,7 +973,7 @@ Core::manageSDLKeyboard()
 		com_simu_ihm_button_status_.left = false;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_END] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_END] == 1 )
 	{
 		com_simu_ihm_button_status_.right = true;
 
@@ -984,7 +984,7 @@ Core::manageSDLKeyboard()
 		com_simu_ihm_button_status_.right = false;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_INSERT] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_INSERT] == 1 )
 	{
 		com_simu_ihm_button_status_.validate = true;
 
@@ -995,7 +995,7 @@ Core::manageSDLKeyboard()
 		com_simu_ihm_button_status_.validate = false;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_DELETE] == 1 )
+	if( sdl_key_[ SDL_SCANCODE_DELETE] == 1 )
 	{
 		com_simu_ihm_button_status_.cancel = true;
 
@@ -1008,32 +1008,32 @@ Core::manageSDLKeyboard()
 
 	// #######################
 
-	if( sdlKey_[ SDL_SCANCODE_LEFT ] == 0 and sdlKey_[ SDL_SCANCODE_RIGHT ] == 0 )
+	if( sdl_key_[ SDL_SCANCODE_LEFT ] == 0 and sdl_key_[ SDL_SCANCODE_RIGHT ] == 0 )
 	{
 		com_simu_remote_status_.analog_y = 128;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_UP ] == 0 and sdlKey_[ SDL_SCANCODE_DOWN ] == 0 )
+	if( sdl_key_[ SDL_SCANCODE_UP ] == 0 and sdl_key_[ SDL_SCANCODE_DOWN ] == 0 )
 	{
 		com_simu_remote_status_.analog_x = 128;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_KP_6 ] == 0 )
+	if( sdl_key_[ SDL_SCANCODE_KP_6 ] == 0 )
 	{
 		com_simu_remote_status_.pad_right = false;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_KP_8 ] == 0 )
+	if( sdl_key_[ SDL_SCANCODE_KP_8 ] == 0 )
 	{
 		com_simu_remote_status_.pad_up = false;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_KP_2 ] == 0 )
+	if( sdl_key_[ SDL_SCANCODE_KP_2 ] == 0 )
 	{
 		com_simu_remote_status_.pad_down = false;
 	}
 
-	if( sdlKey_[ SDL_SCANCODE_KP_4 ] == 0 )
+	if( sdl_key_[ SDL_SCANCODE_KP_4 ] == 0 )
 	{
 		com_simu_remote_status_.pad_left = false;
 	}
@@ -1044,7 +1044,7 @@ Core::manageSDLKeyboard()
 // #################################################
 //
 void
-Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
+Core::manage_received_packet(BaseNaio01PacketPtr packetPtr)
 {
 	// std::cout << "Packet received id : " << static_cast<int>( packetPtr->getPacketId() ) << std::endl;
 
@@ -1129,14 +1129,14 @@ void Core::image_server_thread( )
 {
 	std::cout << "Staring image_server_thread." << std::endl;
 
-	imageServerReadthreadStarted_ = false;
-	imageServerWriteThreadStarted_ = false;
+	image_server_read_thread_started_ = false;
+	image_server_write_thread_started_ = false;
 
-	stopImageServerReadThreadAsked_ = false;
-	stopImageServerWriteThreadAsked_ = false;
+	stop_image_server_read_thread_asked_ = false;
+	stop_image_server_write_thread_asked_ = false;
 
-	stopImageServerThreadAsked_ = false;
-	imageServerThreadStarted_ = true;
+	stop_image_server_thread_asked_ = false;
+	image_server_thread_started_ = true;
 
 	struct sockaddr_in imageServer;
 
@@ -1148,9 +1148,9 @@ void Core::image_server_thread( )
 		std::cout << "Could not create image socket" << std::endl;
 	}
 
-	imageServer.sin_addr.s_addr = inet_addr( hostAdress_.c_str() );
+	imageServer.sin_addr.s_addr = inet_addr( host_adress_.c_str() );
 	imageServer.sin_family = AF_INET;
-	imageServer.sin_port = htons( static_cast<uint16_t>( hostPort_ + 2 ) );
+	imageServer.sin_port = htons( static_cast<uint16_t>( host_port_ + 2 ) );
 
 	//Connect to remote server
 	if ( connect( image_socket_desc_, ( struct sockaddr * ) &imageServer, sizeof( imageServer ) ) < 0 )
@@ -1160,28 +1160,28 @@ void Core::image_server_thread( )
 	else
 	{
 		puts( "Connected image\n" );
-		imageSocketConnected_ = true;
+		image_socket_connected_ = true;
 	}
 
 	image_prepared_thread_ = std::thread( &Core::image_preparer_thread, this );
 
 	std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
 
-	imageServerReadThread_ = std::thread( &Core::image_server_read_thread, this );
+	image_server_read_thread_ = std::thread( &Core::image_server_read_thread, this );
 
 	std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
 
-	imageServerWriteThread_ = std::thread( &Core::image_server_write_thread, this );
+	image_server_write_thread_ = std::thread( &Core::image_server_write_thread, this );
 
 	std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
 
-	while( not stopImageServerThreadAsked_ )
+	while( not stop_image_server_thread_asked_ )
 	{
 		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 500 ) ) );
 	}
 
-	imageServerThreadStarted_ = false;
-	stopImageServerThreadAsked_ = false;
+	image_server_thread_started_ = false;
+	stop_image_server_thread_asked_ = false;
 
 
 
@@ -1196,12 +1196,12 @@ void Core::image_server_read_thread( )
 {
 	std::cout << "Staring image_server_read_thread." << std::endl;
 
-	imageServerReadthreadStarted_ = true;
-	stopImageServerReadThreadAsked_ = false;
+	image_server_read_thread_started_ = true;
+	stop_image_server_read_thread_asked_ = false;
 
 	uint8_t receiveBuffer[ 4000000 ];
 
-	while( not stopImageServerReadThreadAsked_ )
+	while( not stop_image_server_read_thread_asked_ )
 	{
 		image_socket_desc_access_.lock();
 
@@ -1215,12 +1215,12 @@ void Core::image_server_read_thread( )
 		{
 			bool packetHeaderDetected = false;
 
-			bool atLeastOnePacketReceived = imageNaioCodec_.decode( receiveBuffer, static_cast<uint>( readSize ), packetHeaderDetected );
+			bool atLeastOnePacketReceived = image_naio_codec_.decode( receiveBuffer, static_cast<uint>( readSize ), packetHeaderDetected );
 
 			// manage received messages
 			if ( atLeastOnePacketReceived == true )
 			{
-				for ( auto &&packetPtr : imageNaioCodec_.currentBasePacketList )
+				for ( auto &&packetPtr : image_naio_codec_.currentBasePacketList )
 				{
 					if( std::dynamic_pointer_cast<ApiStereoCameraPacket>( packetPtr )  )
 					{
@@ -1247,14 +1247,14 @@ void Core::image_server_read_thread( )
 					}
 				}
 
-				imageNaioCodec_.currentBasePacketList.clear();
+				image_naio_codec_.currentBasePacketList.clear();
 			}
 		}
 		//std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( WAIT_SERVER_IMAGE_TIME_RATE_MS ) ) );
 	}
 
-	imageServerReadthreadStarted_ = false;
-	stopImageServerReadThreadAsked_= false;
+	image_server_read_thread_started_ = false;
+	stop_image_server_read_thread_asked_= false;
 
 	std::cout << "Exiting image_server_read_thread" << std::endl;
 }
@@ -1265,12 +1265,12 @@ void Core::image_server_write_thread( )
 {
 	std::cout << "Staring image_server_write_thread." << std::endl;
 
-	imageServerWriteThreadStarted_ = true;
-	stopImageServerWriteThreadAsked_ = false;
+	image_server_write_thread_started_ = true;
+	stop_image_server_write_thread_asked_ = false;
 
-	while( not stopImageServerWriteThreadAsked_ )
+	while( not stop_image_server_write_thread_asked_ )
 	{
-		if( imageSocketConnected_ )
+		if( image_socket_connected_ )
 		{
 			ApiWatchdogPacketPtr api_watchdog_packet_ptr = std::make_shared<ApiWatchdogPacket>( 42 );
 
@@ -1305,8 +1305,8 @@ void Core::image_server_write_thread( )
 		std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( IMAGE_SERVER_WATCHDOG_SENDING_RATE_MS ) ) );
 	}
 
-	imageServerWriteThreadStarted_ = false;
-	stopImageServerWriteThreadAsked_ = false;
+	image_server_write_thread_started_ = false;
+	stop_image_server_write_thread_asked_ = false;
 
 	std::cout << "Exiting image_server_write_thread" << std::endl;
 }
@@ -1317,11 +1317,11 @@ void Core::image_preparer_thread( )
 {
 	std::cout << "Staring image_preparer_thread." << std::endl;
 
-	imagePreparedThreadStarted_ = true;
-	stopImagePreparerThreadAsked_ = false;
+	image_prepared_thread_started_ = true;
+	stop_image_preparer_thread_asked_ = false;
 
 
-	while ( not stopImagePreparerThreadAsked_ )
+	while ( not stop_image_preparer_thread_asked_ )
 	{
 		api_stereo_camera_packet_ptr_access_.lock();
 
@@ -1387,8 +1387,8 @@ void Core::image_preparer_thread( )
 		std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int64_t>( 20 )));
 	}
 
-	stopImagePreparerThreadAsked_ = false;
-	imagePreparedThreadStarted_ = false;
+	stop_image_preparer_thread_asked_ = false;
+	image_prepared_thread_started_ = false;
 
 	std::cout << "Exiting image_preparer_thread" << std::endl;
 }
@@ -1399,8 +1399,8 @@ void Core::server_write_thread( )
 {
 	std::cout << "Staring server_write_thread." << std::endl;
 
-	stopServerWriteThreadAsked_ = false;
-	serverWriteThreadStarted_ = true;
+	stop_server_write_thread_asked_ = false;
+	server_write_thread_started_ = true;
 
 //	for( int i = 0 ; i < 100 ; i++ )
 //	{
@@ -1409,22 +1409,22 @@ void Core::server_write_thread( )
 //		write( socket_desc_, first_buffer->data(), first_buffer->size() );
 //	}
 
-	while( not stopServerWriteThreadAsked_ )
+	while( not stop_server_write_thread_asked_ )
 	{
-		sendPacketListAccess_.lock();
+		send_packet_list_access_.lock();
 
 		//std::cout << "server_write_thread com_simu_serial_connected_ : " << (int)com_simu_serial_connected_ << std::endl;
 
-		if( socketConnected_ )
+		if( socket_connected_ )
 		{
 			if ( not com_simu_serial_connected_ )
 			{
 				HaMotorsPacketPtr motor_packet = std::make_shared<HaMotorsPacket>( 0, 0 );
 
-				sendPacketList_.push_back( motor_packet );
+				send_packet_list_.push_back( motor_packet );
 			}
 
-			for ( auto &&packet : sendPacketList_ )
+			for ( auto &&packet : send_packet_list_ )
 			{
 				cl_copy::BufferUPtr buffer = packet->encode();
 
@@ -1453,15 +1453,15 @@ void Core::server_write_thread( )
 			}
 		}
 
-		sendPacketList_.clear();
+		send_packet_list_.clear();
 
-		sendPacketListAccess_.unlock();
+		send_packet_list_access_.unlock();
 
 		std::this_thread::sleep_for( std::chrono::milliseconds( SERVER_SEND_COMMAND_RATE_MS ) );
 	}
 
-	stopServerWriteThreadAsked_ = false;
-	serverWriteThreadStarted_ = false;
+	stop_server_write_thread_asked_ = false;
+	server_write_thread_started_ = false;
 
 	std::cout << "Stopping server write thread." << std::endl;
 }
@@ -1528,11 +1528,11 @@ void Core::com_simu_read_serial_thread_function( )
 
 					HaMotorsPacketPtr haMotorsPacketPtr = std::make_shared<HaMotorsPacket>( motors[ 2 ], motors[ 1 ] );
 
-					sendPacketListAccess_.lock();
+					send_packet_list_access_.lock();
 
-					sendPacketList_.push_back( haMotorsPacketPtr );
+					send_packet_list_.push_back( haMotorsPacketPtr );
 
-					sendPacketListAccess_.unlock();
+					send_packet_list_access_.unlock();
 				}
 
 				posInEntete = 0;
@@ -2198,7 +2198,7 @@ void Core::simaltoz_image_displayer_starter_thread_function()
 		{
 			std::cout << "Starting image displayer." << std::endl;
 
-			imageServerThread_ = std::thread( &Core::image_server_thread, this );
+			image_server_thread_ = std::thread( &Core::image_server_thread, this );
 
 			asked_simaltoz_image_displayer_start_ = false;
 		}
@@ -2219,7 +2219,7 @@ void Core::start_simaltoz_image_display()
 	{
 		last_image_displayer_action_time_ms_ = now;
 
-		if( imageServerThreadStarted_ == false or imageServerReadthreadStarted_ == false and imageServerWriteThreadStarted_ == false and imagePreparedThreadStarted_ == false )
+		if( image_server_thread_started_ == false or image_server_read_thread_started_ == false and image_server_write_thread_started_ == false and image_prepared_thread_started_ == false )
 		{
 			asked_simaltoz_image_displayer_start_ = true;
 		}
@@ -2244,16 +2244,16 @@ void Core::stop_simaltoz_image_display()
 
 		std::cout << "Stopping image displayer." << std::endl;
 
-		if( imageServerThreadStarted_ and imageServerReadthreadStarted_ and imageServerWriteThreadStarted_ and imagePreparedThreadStarted_ )
+		if( image_server_thread_started_ and image_server_read_thread_started_ and image_server_write_thread_started_ and image_prepared_thread_started_ )
 		{
-			stopImageServerReadThreadAsked_ = true;
-			stopImageServerWriteThreadAsked_ = true;
-			stopImagePreparerThreadAsked_ = true;
-			stopImageServerThreadAsked_ = true;
+			stop_image_server_read_thread_asked_ = true;
+			stop_image_server_write_thread_asked_ = true;
+			stop_image_preparer_thread_asked_ = true;
+			stop_image_server_thread_asked_ = true;
 
 			int cpt = 0;
 
-			while( ( imageServerThreadStarted_ or imageServerReadthreadStarted_ or imageServerWriteThreadStarted_ or imagePreparedThreadStarted_ ) and cpt < 100  )
+			while( ( image_server_thread_started_ or image_server_read_thread_started_ or image_server_write_thread_started_ or image_prepared_thread_started_ ) and cpt < 100  )
 			{
 				std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 1 ) ) );
 				cpt++;
@@ -2279,7 +2279,7 @@ void Core::stop_simaltoz_image_display()
 
 			std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
 
-			imageServerReadThread_.join();
+			image_server_read_thread_.join();
 
 			std::cout << ".";
 
@@ -2291,13 +2291,13 @@ void Core::stop_simaltoz_image_display()
 
 			std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
 
-			imageServerWriteThread_.join();
+			image_server_write_thread_.join();
 
 			std::cout << ".";
 
 			std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
 
-			imageServerThread_.join();
+			image_server_thread_.join();
 
 			std::cout << std::endl;
 		}
