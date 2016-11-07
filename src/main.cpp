@@ -4,7 +4,6 @@
 #define PORT_ROBOT_MOTOR 5555
 #define DEFAULT_HOST_ADDRESS "127.0.0.1"
 
-
 int main( int argc, char** argv )
 {
 //	struct sockaddr_in imageServer;

@@ -239,6 +239,8 @@ private:
 	void simaltoz_image_displayer_starter_thread_function();
 	void start_simaltoz_image_display();
 	void stop_simaltoz_image_display();
+
+	void text_keyboard_reader_thread_function( );
 public:
 
 	bool stop_main_thread_asked_;
@@ -383,6 +385,12 @@ private:
 	std::thread	simaltoz_image_displayer_starter_thread_;
 	bool asked_simaltoz_image_displayer_start_;
 	std::mutex simulatoz_image_actionner_access_;
+
+
+	std::thread	text_keyboard_reader_thread_;
+
+	uint64_t last_text_keyboard_hit_time_;
+
 };
 
 #endif

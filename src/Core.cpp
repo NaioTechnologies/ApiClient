@@ -20,10 +20,64 @@
 #include <linux/can.h>
 #include <linux/can/raw.h>
 #include "DriverSocket.hpp"
+#include <cstring>
 
 using namespace std;
 using namespace std::chrono;
 
+// #################################################
+// #################################################
+// #################################################
+
+#include <termios.h>
+#include <stdio.h>
+
+static struct termios old_t, new_t;
+
+/* Initialize new terminal i/o settings */
+void initTermios( int echo )
+{
+	tcgetattr( 0, &old_t ); /* grab old terminal i/o settings */
+
+	new_t = old_t; /* make new settings same as old settings */
+	new_t.c_lflag &= ~ICANON; /* disable buffered i/o */
+	new_t.c_lflag &= echo ? ECHO : ~ECHO; /* set echo mode */
+
+	tcsetattr( 0, TCSANOW, &new_t ); /* use these new terminal i/o settings now */
+}
+
+/* Restore old terminal i/o settings */
+void resetTermios( void )
+{
+	tcsetattr( 0, TCSANOW, &old_t );
+}
+
+/* Read 1 character - echo defines echo mode */
+char getch_( int echo )
+{
+	char ch;
+
+	initTermios( echo );
+	ch = getchar( );
+	resetTermios( );
+
+	return ch;
+}
+
+/* Read 1 character without echo */
+char getch( void )
+{
+	return getch_( 0 );
+}
+
+/* Read 1 character with echo */
+char getche( void )
+{
+	return getch_( 1 );
+}
+
+// #################################################
+// #################################################
 // #################################################
 //
 Core::Core( ) :
@@ -253,6 +307,11 @@ Core::main_thread( )
 	main_thread_started_ = true;
 	stop_main_thread_asked_ = false;
 
+	uint64_t last_screen_output_time = 0;
+	uint64_t last_key_time = 0;
+
+	text_keyboard_reader_thread_ = std::thread( &Core::text_keyboard_reader_thread_function, this );
+
 	// creates main thread
 	if( graphical_display_on_ )
 	{
@@ -262,7 +321,38 @@ Core::main_thread( )
 	{
 		while( not stop_main_thread_asked_ )
 		{
-			std::this_thread::sleep_for( std::chrono::milliseconds( 100 ) );
+			uint64_t now_t = get_now_ms();
+
+			if( now_t - last_screen_output_time > 1000 )
+			{
+				std::cout << com_simu_ihm_line_top_ << std::endl;
+				std::cout << com_simu_ihm_line_bottom_ << std::endl;
+
+				last_screen_output_time = now_t;
+			}
+
+			if( ( now_t - last_key_time ) > 50 )
+			{
+				if( ( now_t - last_text_keyboard_hit_time_ ) > 200 )
+				{
+					com_simu_remote_status_.analog_x = 127;
+					com_simu_remote_status_.analog_y = 127;
+					com_simu_remote_status_.arr_left = false;
+					com_simu_remote_status_.arr_right = false;
+					com_simu_remote_status_.pad_up = false;
+					com_simu_remote_status_.pad_down = false;
+					com_simu_remote_status_.pad_left = false;
+					com_simu_remote_status_.pad_right = false;
+					com_simu_remote_status_.secu_left = false;
+					com_simu_remote_status_.secu_right = false;
+				}
+
+				send_remote_can_packet( CAN_TELECO_KEYS );
+
+				last_key_time = now_t;
+			}
+
+			std::this_thread::sleep_for( std::chrono::milliseconds( 25 ) );
 		}
 	}
 
@@ -272,6 +362,77 @@ Core::main_thread( )
 	std::cout << "Stopping main thread." << std::endl;
 
 	(void)( system( "pkill socat" ) + 1 );
+}
+
+// #################################################
+//
+void Core::text_keyboard_reader_thread_function( )
+{
+	last_text_keyboard_hit_time_ = 0;
+
+	com_simu_remote_status_.analog_x = 127;
+	com_simu_remote_status_.analog_y = 127;
+	com_simu_remote_status_.arr_left = false;
+	com_simu_remote_status_.arr_right = false;
+	com_simu_remote_status_.pad_up = false;
+	com_simu_remote_status_.pad_down = false;
+	com_simu_remote_status_.pad_left = false;
+	com_simu_remote_status_.pad_right = false;
+	com_simu_remote_status_.secu_left = false;
+	com_simu_remote_status_.secu_right = false;
+
+	while( not stop_main_thread_asked_ )
+	{
+		uint64_t now_t = get_now_ms();
+
+		int key = getch();
+
+		last_text_keyboard_hit_time_ = now_t;
+
+		// std::cout << "key : " << key << std::endl;
+
+		if( key == 7 )
+		{
+			stop_main_thread_asked_ = true;
+		}
+		else
+		{
+			if( key == 56 )
+			{
+				com_simu_remote_status_.pad_up = true;
+			}
+			else if( key == 50 )
+			{
+				com_simu_remote_status_.pad_down = true;
+			}
+			else if( key == 52 )
+			{
+				com_simu_remote_status_.pad_left = true;
+			}
+			else if( key == 54 )
+			{
+				com_simu_remote_status_.pad_right = true;
+			}
+			else if( key == 55 )
+			{
+				com_simu_remote_status_.secu_left = true;
+			}
+			else if( key == 57 )
+			{
+				com_simu_remote_status_.secu_right = true;
+			}
+			else if( key == 49 )
+			{
+				com_simu_remote_status_.arr_left = true;
+			}
+			else if( key == 51 )
+			{
+				com_simu_remote_status_.arr_right = true;
+			}
+		}
+
+		std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
+	}
 }
 
 // #################################################
@@ -665,10 +826,12 @@ void Core::draw_images( )
 
 	uint8_t last_images_buffer_to_display[ 752 * 480 * 3 * 2 ];
 
-	for( uint i = 0 ; i < ( 752 * 480 * 3 * 2 ) ; i++ )
-	{
-		last_images_buffer_to_display[ i ] = last_images_buffer_[ i ];
-	}
+//	for( uint i = 0 ; i < ( 752 * 480 * 3 * 2 ) ; i++ )
+//	{
+//		last_images_buffer_to_display[ i ] = last_images_buffer_[ i ];
+//	}
+
+	std::memcpy( &(last_images_buffer_to_display[ 0 ]), &(last_images_buffer_[ 0 ]),  752 * 480 * 3 * 2 );
 
 	last_images_buffer_access_.unlock();
 
@@ -1232,10 +1395,12 @@ void Core::image_server_read_thread( )
 
 						size_t buffer_size = api_stereo_camera_packet_ptr->dataBuffer->size();
 
-						for( int i = 0 ; i < 721920 ; i++ )
+						for( int i = 0 ; i < buffer_size ; i++ )
 						{
 							image_buffer_for_ozcore[ i ] = api_stereo_camera_packet_ptr->dataBuffer->at( i );
 						}
+
+						//std::memcpy( &image_buffer_for_ozcore, &(api_stereo_camera_packet_ptr_->dataBuffer->data()[ 0 ]), buffer_size );
 
 						com_simu_image_to_core_buffer_updated_time_ = get_now_ms();
 
@@ -1366,6 +1531,8 @@ void Core::image_preparer_thread( )
 			{
 				(*prepared_image_buffer)[i] = api_stereo_camera_packet_ptr_->dataBuffer->at(i);
 			}
+
+//			std::memcpy( &((*prepared_image_buffer)[ 0 ]), &(api_stereo_camera_packet_ptr_->dataBuffer->at( 0 )), buffer_size );
 
 			last_images_buffer_access_.lock();
 
@@ -1915,33 +2082,23 @@ void Core::send_remote_can_packet( ComSimuCanMessageType message_type )
 		uint8_t directional_cross = 0x00;
 		uint8_t buttons1 = 0x00;
 
-		// std::cout << "com_simu_remote_status_.teleco_act_7 : " << static_cast< int >( com_simu_remote_status_.teleco_act_7 ) << std::endl;
-
 		if( com_simu_remote_status_.pad_up )
 		{
-			// std::cout << "com_simu_remote_status_.pad_up" << std::endl;
-
 			directional_cross = ( directional_cross | ( 0x01 << 3 ) );
 		}
 
 		if( com_simu_remote_status_.pad_left )
 		{
-			// std::cout << "com_simu_remote_status_.pad_left" << std::endl;
-
 			directional_cross = ( directional_cross | ( 0x01 << 4 ) );
 		}
 
 		if( com_simu_remote_status_.pad_right )
 		{
-			// std::cout << "com_simu_remote_status_.pad_right" << std::endl;
-
 			directional_cross = ( directional_cross | ( 0x01 << 5 ) );
 		}
 
 		if( com_simu_remote_status_.pad_down )
 		{
-			// std::cout << "com_simu_remote_status_.pad_down" << std::endl;
-
 			directional_cross = ( directional_cross | ( 0x01 << 6 ) );
 		}
 
@@ -2145,10 +2302,12 @@ void Core::com_simu_image_to_core_write_thread_function( )
 
 				local_buffer_size = 721920;
 
-				for (uint i = 0; i < local_buffer_size; i++)
-				{
-					local_buffer[ i ] = image_buffer_for_ozcore[ i ];
-				}
+//				for (uint i = 0; i < local_buffer_size; i++)
+//				{
+//					local_buffer[ i ] = image_buffer_for_ozcore[ i ];
+//				}
+
+				std::memcpy( &(local_buffer[ 0 ]), &(image_buffer_for_ozcore[ 0 ]), local_buffer_size );
 
 				send_image = true;
 			}
