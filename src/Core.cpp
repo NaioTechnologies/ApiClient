@@ -27,9 +27,10 @@ using namespace std::chrono;
 // #################################################
 //
 Core::Core( ) :
-		stopThreadAsked_{ false },
-		threadStarted_{ false },
-		graphicThread_{ },
+		stop_main_thread_asked_{ false },
+		main_thread_started_{ false },
+		//graphicThread_{ },
+		main_thread_{ },
 		hostAdress_{ "10.0.1.1" },
 		hostPort_{ 5555 },
 		socketConnected_{false},
@@ -119,14 +120,14 @@ Core::~Core( )
 // #################################################
 //
 void
-Core::init( bool no_gui, std::string hostAdress, uint16_t hostPort )
+Core::init( bool graphical_display_on, std::string hostAdress, uint16_t hostPort )
 {
-	no_gui_ = no_gui;
+	graphical_display_on_ = graphical_display_on;
 	hostAdress_ = hostAdress;
 	hostPort_ = hostPort;
 
-	stopThreadAsked_ = false;
-	threadStarted_ = false;
+	stop_main_thread_asked_ = false;
+	main_thread_started_ = false;
 	socketConnected_ = false;
 
 	imageServerThreadStarted_ = false;
@@ -135,13 +136,16 @@ Core::init( bool no_gui, std::string hostAdress, uint16_t hostPort )
 	serverReadthreadStarted_ = false;
 	stopServerWriteThreadAsked_ = false;
 
-	// ignore unused screen
-	(void)screen_;
+	main_thread_ = std::thread( &Core::main_thread, this );
 
-	for ( int i = 0 ; i < SDL_NUM_SCANCODES ; i++ )
-	{
-		sdlKey_[i] = 0;
-	}
+//	if( graphical_display_on_ )
+//	{
+//		main_thread_ = std::thread( &Core::graphic_thread, this );
+//	}
+//	else
+//	{
+//
+//	}
 
 	std::cout << "Connecting to simu : " << hostAdress << ":" <<  hostPort << std::endl;
 
@@ -150,7 +154,7 @@ Core::init( bool no_gui, std::string hostAdress, uint16_t hostPort )
 	//Create socket
 	socket_desc_ = socket( AF_INET, SOCK_STREAM, 0 );
 
-	if (socket_desc_ == -1)
+	if ( socket_desc_ == -1 )
 	{
 		std::cout << "Could not create socket" << std::endl;
 	}
@@ -170,17 +174,11 @@ Core::init( bool no_gui, std::string hostAdress, uint16_t hostPort )
 		socketConnected_ = true;
 	}
 
-	// creates main thread
-	if( not no_gui_ )
-	{
-		graphicThread_ = std::thread( &Core::graphic_thread, this );
-	}
-
 	serverReadThread_ = std::thread( &Core::server_read_thread, this );
 
 	serverWriteThread_ = std::thread( &Core::server_write_thread, this );
 
-	if( not no_gui_ )
+	if( graphical_display_on_ )
 	{
 		simaltoz_image_displayer_starter_thread_ = std::thread( &Core::simaltoz_image_displayer_starter_thread_function, this );
 	}
@@ -207,38 +205,6 @@ Core::init( bool no_gui, std::string hostAdress, uint16_t hostPort )
 	// bridge simulatos images
 	com_simu_image_to_core_read_thread_ = std::thread( &Core::com_simu_image_to_core_read_thread_function, this );
 	com_simu_image_to_core_write_thread_ = std::thread( &Core::com_simu_image_to_core_write_thread_function, this );
-
-	(void)com_simu_image_to_core_read_thread_;
-	(void)com_simu_image_to_core_write_thread_;
-}
-
-// #################################################
-//
-void
-Core::stop( )
-{
-	if( threadStarted_ )
-	{
-		stopThreadAsked_ = true;
-
-		graphicThread_.join();
-
-		threadStarted_ = false;
-	}
-}
-
-// #################################################
-//
-void Core::stopServerReadThread( )
-{
-	if( serverReadthreadStarted_)
-	{
-		stopServerReadThreadAsked_ = true;
-
-		serverReadThread_.join();
-
-		serverReadthreadStarted_ = false;
-	}
 }
 
 // #################################################
@@ -282,9 +248,43 @@ void Core::server_read_thread( )
 // #################################################
 //
 void
+Core::main_thread( )
+{
+	main_thread_started_ = true;
+	stop_main_thread_asked_ = false;
+
+	// creates main thread
+	if( graphical_display_on_ )
+	{
+		graphic_thread();
+	}
+	else
+	{
+		while( not stop_main_thread_asked_ )
+		{
+			std::this_thread::sleep_for( std::chrono::milliseconds( 100 ) );
+		}
+	}
+
+	main_thread_started_ = false;
+	stop_main_thread_asked_ = false;
+
+	std::cout << "Stopping main thread." << std::endl;
+
+	(void)( system( "pkill socat" ) + 1 );
+}
+
+// #################################################
+//
+void
 Core::graphic_thread( )
 {
-	std::cout << "Starting main thread." << std::endl;
+	std::cout << "Starting graphic_thread." << std::endl;
+
+	for ( int i = 0 ; i < SDL_NUM_SCANCODES ; i++ )
+	{
+		sdlKey_[i] = 0;
+	}
 
     // create graphics
     screen_ = initSDL( "Simulatoz Bridge", 800, 730 );
@@ -296,9 +296,7 @@ Core::graphic_thread( )
 	int64_t duration = MAIN_GRAPHIC_DISPLAY_RATE_MS;
 	int64_t nextTick = now + duration;
 
-	threadStarted_ = true;
-
-	while( !stopThreadAsked_ )
+	while( !stop_main_thread_asked_ )
 	{
 		ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
 		now = static_cast<int64_t>( ms.count() );
@@ -514,14 +512,7 @@ Core::graphic_thread( )
 		std::this_thread::sleep_for( std::chrono::milliseconds( wait_time / 2 ) );
 	}
 
-	threadStarted_ = false;
-	stopThreadAsked_ = false;
-
 	exitSDL();
-
-	std::cout << "Stopping main thread." << std::endl;
-
-	(void)( system( "pkill socat" ) + 1 );
 }
 
 // #################################################
@@ -793,7 +784,7 @@ Core::manageSDLKeyboard()
 
 	if( sdlKey_[ SDL_SCANCODE_ESCAPE ] == 1)
 	{
-		stopThreadAsked_ = true;
+		stop_main_thread_asked_ = true;
 
 		return true;
 	}
@@ -1127,16 +1118,9 @@ Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
 // #################################################
 //
 void
-Core::joinMainThread()
+Core::join_main_thread( )
 {
-	graphicThread_.join();
-}
-
-// #################################################
-//
-void Core::joinServerReadThread()
-{
-	serverReadThread_.join();
+	main_thread_.join( );
 }
 
 // #################################################
@@ -1657,7 +1641,7 @@ void Core::com_simu_lidar_to_core_thread_function( )
 
 // #################################################
 //
-int Core::com_simu_connect_can( )
+void Core::com_simu_connect_can( )
 {
 	struct sockaddr_can addr;
 	struct ifreq ifr;
@@ -1681,14 +1665,15 @@ int Core::com_simu_connect_can( )
 	if( bind( com_simu_can_socket_, ( struct sockaddr * ) &addr, sizeof( addr ) ) < 0 )
 	{
 		perror( "Error in can socket bind" );
-		return -2;
+		//return -2;
+		return;
 	}
 
 	com_simu_can_connected_ = true;
 
 	printf( "Can Connected\n" );
 
-	return 1;
+	//return 0;
 }
 
 

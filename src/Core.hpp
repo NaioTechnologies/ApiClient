@@ -174,16 +174,14 @@ public:
 	~Core( );
 
 	// launch core
-	void init( bool no_gui, std::string hostAdress_, uint16_t hostPort_ );
+	void init( bool graphical_display_on, std::string hostAdress_, uint16_t hostPort_ );
 
 	// thread management
-	void stop( );
-	void stopServerReadThread( );
-	void joinMainThread();
-	void joinServerReadThread();
+	void join_main_thread();
 
 private:
 	// thread function
+	void main_thread( );
 	void graphic_thread( );
 
 	// main server 5555 thread function
@@ -218,7 +216,7 @@ private:
 	void com_simu_create_serial_thread_function( );
 	void com_simu_read_serial_thread_function( );
 	void com_simu_lidar_to_core_thread_function( );
-	int com_simu_connect_can( );
+	void com_simu_connect_can( );
  	void com_simu_transform_and_write_to_can( BaseNaio01PacketPtr packetPtr );
 	void com_simu_send_can_packet( ComSimuCanMessageId id, ComSimuCanMessageType id_msg, uint8_t data[], uint8_t len );
 
@@ -241,14 +239,19 @@ private:
 	void simaltoz_image_displayer_starter_thread_function();
 	void start_simaltoz_image_display();
 	void stop_simaltoz_image_display();
+public:
+
+	bool stop_main_thread_asked_;
 
 private:
-	bool no_gui_;
+	bool graphical_display_on_;
 
 	// thread part
-	bool stopThreadAsked_;
-	bool threadStarted_;
-	std::thread graphicThread_;
+
+	bool main_thread_started_;
+	std::thread main_thread_;
+
+	//std::thread graphicThread_;
 
 	bool stopServerReadThreadAsked_;
 	bool serverReadthreadStarted_;

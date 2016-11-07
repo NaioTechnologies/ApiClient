@@ -105,7 +105,7 @@ int main( int argc, char** argv )
 		hostPort = atoi( argv[2] );
 	}
 
-	bool no_gui = false;
+	bool graphical_display_on = true;
 
 	for( int i = 0 ; i < argc ; i++ )
 	{
@@ -113,16 +113,24 @@ int main( int argc, char** argv )
 
 		if( nogui == "nogui" )
 		{
-			no_gui = true;
+			std::cout << "Starting Simulatoz Bridge in no gui mode." << std::endl;
+
+			graphical_display_on = false;
 		}
 	}
 
-
 	// start main core thread
-	core->init( no_gui, hostAdress, static_cast<uint16_t>( hostPort ) );
+	core->init( graphical_display_on, hostAdress, static_cast<uint16_t>( hostPort ) );
 
-	// waits the thread exits
-	core->joinMainThread();
+	std::cout << "Simulatoz Bridge Started" << std::endl;
+
+	while ( not core->stop_main_thread_asked_ )
+	{
+		std::this_thread::sleep_for( std::chrono::milliseconds( 100 ) );
+	}
+
+//	// waits the thread exits
+//	core->join_main_thread( );
 
 	delete core;
 
