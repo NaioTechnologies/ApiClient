@@ -22,6 +22,8 @@
 #include "DriverSocket.hpp"
 #include <cstring>
 
+#include "GeoAngle.hpp"
+
 using namespace std;
 using namespace std::chrono;
 
@@ -259,6 +261,8 @@ Core::init( bool graphical_display_on, std::string hostAdress, uint16_t hostPort
 	// bridge simulatos images
 	com_simu_image_to_core_read_thread_ = std::thread( &Core::com_simu_image_to_core_read_thread_function, this );
 	com_simu_image_to_core_write_thread_ = std::thread( &Core::com_simu_image_to_core_write_thread_function, this );
+
+	gps_manager_thread_ = std::thread( &Core::gps_manager_thread_function , this );
 }
 
 // #################################################
@@ -1262,6 +1266,7 @@ Core::manage_received_packet(BaseNaio01PacketPtr packetPtr)
 		HaGpsPacketPtr haGpsPacketPtr = std::dynamic_pointer_cast<HaGpsPacket>( packetPtr );
 
 		ha_gps_packet_ptr_access_.lock();
+		previous_ha_gps_packet_ptr_ = ha_gps_packet_ptr_;
 		ha_gps_packet_ptr_ = haGpsPacketPtr;
 		ha_gps_packet_ptr_access_.unlock();
 	}
@@ -1943,14 +1948,14 @@ void Core::com_simu_transform_and_write_to_can( BaseNaio01PacketPtr packetPtr )
 //
 void Core::com_simu_send_can_packet( ComSimuCanMessageId id, ComSimuCanMessageType id_msg, uint8_t data[], uint8_t len )
 {
-	struct can_frame frame;
-	ssize_t nbytes = -1;
-	int nbTests = 0;
-
 	if ( not com_simu_can_connected_ )
 	{
 		return;
 	}
+
+	struct can_frame frame;
+	ssize_t nbytes = -1;
+	int nbTests = 0;
 
 	frame.can_id  = ( unsigned int )( id * 128 + id_msg );
 	frame.can_dlc = len;
@@ -2465,4 +2470,218 @@ void Core::stop_simaltoz_image_display()
 	std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
 
 	simulatoz_image_actionner_access_.unlock();
+}
+
+
+// #################################################
+//
+void Core::gps_manager_thread_function( )
+{
+	uint64_t tick_duration_ms = 1000;
+	uint64_t now = get_now_ms();
+	uint64_t next_tick_time = now + tick_duration_ms;
+
+	while( not stop_main_thread_asked_ )
+	{
+		now = get_now_ms();
+
+		if( now > next_tick_time )
+		{
+			// ##################
+			// # GPS MANAGEMENT #
+			// ##################
+
+			gps_manager( );
+
+			// ##################
+			next_tick_time = next_tick_time + tick_duration_ms;
+		}
+		else
+		{
+			uint64_t wait_time = next_tick_time - now;
+
+			std::this_thread::sleep_for( std::chrono::milliseconds( wait_time ) );
+		}
+	}
+}
+
+// #################################################
+//
+void Core::gps_manager( )
+{
+	ha_gps_packet_ptr_access_.lock();
+	HaGpsPacketPtr ha_gps_packet_ptr = ha_gps_packet_ptr_;
+	HaGpsPacketPtr previous_ha_gps_packet_ptr = previous_ha_gps_packet_ptr_;
+	ha_gps_packet_ptr_access_.unlock();
+
+	if( ha_gps_packet_ptr == nullptr )
+	{
+		return;
+	}
+
+	double track_orientation = 0.0;
+
+	if( previous_ha_gps_packet_ptr != nullptr )
+	{
+		// compute speed and track orientation
+		track_orientation = get_north_bearing( previous_ha_gps_packet_ptr->lat, previous_ha_gps_packet_ptr->lon, ha_gps_packet_ptr->lat, ha_gps_packet_ptr->lon );
+	}
+
+	//  #####################  RMC ####################
+
+	std::time_t rawtime;
+	std::tm* timeinfo;
+
+	char hhmmss[ 80 ];
+	char ddmmyy[ 80 ];
+	char to[ 80 ];
+	char gs[ 80 ];
+
+	std::time( &rawtime );
+	timeinfo = std::localtime( &rawtime );
+
+	sprintf( to, "%03.1f", track_orientation );
+	sprintf( gs, "%03.1f", ha_gps_packet_ptr_->groundSpeed );
+
+	std::strftime( hhmmss, 80, "%H%M%S", timeinfo );
+	std::strftime( ddmmyy, 80, "%d%m%y", timeinfo );
+
+	GeoAngle ns = GeoAngle::from_double( ha_gps_packet_ptr->lat );
+	GeoAngle we = GeoAngle::from_double( ha_gps_packet_ptr->lon );
+
+	std::string gprmc =   string( "$GPRMC" ) + string( "," )
+						+ string( hhmmss ) + string( "," )
+						+ string( "A" ) + string( "," )
+					    + ns.to_string( true ) + string( "," )
+						+ we.to_string( false ) + string( "," )
+						+ string( gs ) + string( "," )
+						+ string( to ) + string( "," )
+						+ string( ddmmyy ) + string( "," )
+						+ string( "#" ) + string( "," )
+						+ string( "*" );
+
+	std::cout << "gprmc : " << gprmc << std::endl;
+
+	//  #####################  VTG ####################
+
+	std::string gpvtg =   string( "$GPVTG" ) + string( "," )
+						  + string( to ) + string( ",T," )
+						  + string( to ) + string( ",M," )
+						  + string( gs ) + string( ",N," )
+						  + string( gs ) + string( ",K," )
+						  + string( "*" );
+
+	std::cout << "gpvtg : " << gpvtg << std::endl;
+
+
+	//  #####################  GGA ####################
+
+	char quality[ 80 ];
+	char nos[ 80 ];
+	char alt[ 80 ];
+
+	sprintf( quality, "%d", static_cast<int>( ha_gps_packet_ptr_->quality ) );
+	sprintf( nos, "%02d", static_cast<int>( ha_gps_packet_ptr_->satUsed ) );
+	sprintf( alt, "%03.1f", ha_gps_packet_ptr_->alt );
+
+	std::string gpgga =   string( "$GPGGA" ) + string( "," )
+						  + string( "#" ) + string( "," )
+						  + string( "#" ) + string( "," )
+						  + string( "#" ) + string( "," )
+						  + string( "#" ) + string( "," )
+						  + string( "#" ) + string( "," )
+						  + string( quality ) + string( "," )
+						  + string( nos ) + string( "," )
+						  + string( "0.9" ) + string( "," )
+						  + string( alt ) + string( ",M," )
+						  + string( "*" );
+
+	std::cout << "gpgga : " << gpgga << std::endl;
+
+	// ###############################
+	// send gprmc
+	for( int i = 0 ; i < gprmc.size() ; i++ )
+	{
+		uint8_t data[1];
+
+		data[ 0 ] = static_cast<uint8_t>( gprmc.at( i ) );
+
+		com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GPS, ComSimuCanMessageType::CAN_GPS_DATA, data, 1 );
+
+		usleep( 200 );
+	}
+
+	uint8_t end_data[1];
+	end_data[ 0 ] = 10;
+
+	com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GPS, ComSimuCanMessageType::CAN_GPS_DATA, end_data, 1 );
+
+	usleep( 200 );
+
+	// ###############################
+	// send gpvtg
+	for( int i = 0 ; i < gpvtg.size() ; i++ )
+	{
+		uint8_t data[1];
+
+		data[ 0 ] = static_cast<uint8_t>( gpvtg.at( i ) );
+
+		com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GPS, ComSimuCanMessageType::CAN_GPS_DATA, data, 1 );
+
+		usleep( 200 );
+	}
+
+	com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GPS, ComSimuCanMessageType::CAN_GPS_DATA, end_data, 1 );
+
+	usleep( 200 );
+
+
+	// ###############################
+	// send gpgga
+	for( int i = 0 ; i < gpgga.size() ; i++ )
+	{
+		uint8_t data[1];
+
+		data[ 0 ] = static_cast<uint8_t>( gpgga.at( i ) );
+
+		com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GPS, ComSimuCanMessageType::CAN_GPS_DATA, data, 1 );
+
+		usleep( 200 );
+	}
+
+	com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GPS, ComSimuCanMessageType::CAN_GPS_DATA, end_data, 1 );
+
+	usleep( 200 );
+
+}
+
+// #################################################
+//
+double Core::get_north_bearing( double lat1, double lon1, double lat2, double lon2 )
+{
+	double startLat = lat1 * M_PI / 180.0;
+	double startLon = lon1  * M_PI / 180.0;
+
+	double endLat = lat2 * M_PI / 180.0;
+	double endLon = lon2  * M_PI / 180.0;
+
+	double dLong = endLon - startLon;
+
+	double dPhi = std::log( std::tan( endLat / 2.0 + M_PI / 4.0 ) / std::tan( startLat / 2.0 + M_PI / 4.0 ) );
+
+	if( std::abs( dLong ) > M_PI )
+	{
+		if( dLong > 0.0 )
+		{
+			dLong = -( 2.0 * M_PI - dLong );
+		}
+		else
+		{
+			dLong = ( 2.0 * M_PI - dLong );
+		}
+	}
+
+	double brng = fmod( ( std::atan2( dLong, dPhi ) / M_PI * 180.0  ) + 360.0 , 360.0 );
+
+	return brng;
 }

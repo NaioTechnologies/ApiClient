@@ -241,6 +241,12 @@ private:
 	void stop_simaltoz_image_display();
 
 	void text_keyboard_reader_thread_function( );
+
+	void gps_manager_thread_function( );
+	void gps_manager( );
+
+	double get_north_bearing( double lat1, double lon1, double lat2, double lon2 );
+
 public:
 
 	bool stop_main_thread_asked_;
@@ -291,6 +297,7 @@ private:
 
 	std::mutex ha_gps_packet_ptr_access_;
 	HaGpsPacketPtr ha_gps_packet_ptr_;
+	HaGpsPacketPtr previous_ha_gps_packet_ptr_;
 
 	std::mutex api_stereo_camera_packet_ptr_access_;
 	ApiStereoCameraPacketPtr api_stereo_camera_packet_ptr_;
@@ -391,6 +398,7 @@ private:
 
 	uint64_t last_text_keyboard_hit_time_;
 
+	std::thread	gps_manager_thread_;
 };
 
 #endif
