@@ -1962,7 +1962,7 @@ void Core::com_simu_send_can_packet( ComSimuCanMessageId id, ComSimuCanMessageTy
 
 	for ( uint8_t i = 0 ; i < len ; i++ )
 	{
-		frame.data[i] = data[i];
+		frame.data[ i ] = data[ i ];
 	}
 
 	while ( nbytes <= 0 && nbTests < 10 )
@@ -2602,7 +2602,7 @@ void Core::gps_manager( )
 	// send gprmc
 	for( int i = 0 ; i < gprmc.size() ; i++ )
 	{
-		uint8_t data[1];
+		uint8_t data[ 1 ];
 
 		data[ 0 ] = static_cast<uint8_t>( gprmc.at( i ) );
 
@@ -2611,7 +2611,7 @@ void Core::gps_manager( )
 		usleep( 200 );
 	}
 
-	uint8_t end_data[1];
+	uint8_t end_data[ 1 ];
 	end_data[ 0 ] = 10;
 
 	com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GPS, ComSimuCanMessageType::CAN_GPS_DATA, end_data, 1 );
@@ -2622,7 +2622,7 @@ void Core::gps_manager( )
 	// send gpvtg
 	for( int i = 0 ; i < gpvtg.size() ; i++ )
 	{
-		uint8_t data[1];
+		uint8_t data[ 1 ];
 
 		data[ 0 ] = static_cast<uint8_t>( gpvtg.at( i ) );
 
@@ -2640,7 +2640,7 @@ void Core::gps_manager( )
 	// send gpgga
 	for( int i = 0 ; i < gpgga.size() ; i++ )
 	{
-		uint8_t data[1];
+		uint8_t data[ 1 ];
 
 		data[ 0 ] = static_cast<uint8_t>( gpgga.at( i ) );
 
