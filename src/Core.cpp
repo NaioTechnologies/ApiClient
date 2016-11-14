@@ -10,6 +10,8 @@
 #include <zlib.h>
 #include <ApiWatchdogPacket.hpp>
 #include "Core.hpp"
+#include <ApiCodec/ApiMoveActuatorPacket.hpp>
+
 
 // com_simu
 #include "DriverSerial.hpp"
@@ -1281,6 +1283,26 @@ Core::manage_received_packet(BaseNaio01PacketPtr packetPtr)
 		api_stereo_camera_packet_ptr_ = api_stereo_camera_packet_ptr;
 		api_stereo_camera_packet_ptr_access_.unlock();
 	}
+    else if( std::dynamic_pointer_cast<ApiMoveActuatorPacket>( packetPtr )  )
+    {
+        ApiMoveActuatorPacketPtr api_move_actuator_packet_ptr = std::dynamic_pointer_cast<ApiMoveActuatorPacket>( packetPtr );
+
+        tool_position_access_.lock();
+
+        tool_position_ = api_move_actuator_packet_ptr->position;
+
+        tool_position_access_.unlock();
+
+        uint8_t data[1];
+
+        tool_position_access_.lock();
+
+        data[ 0 ] = tool_position_;
+
+        tool_position_access_.unlock();
+
+        com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_VER, ComSimuCanMessageType::CAN_VER_POS, data, 1 );
+    }
 }
 
 // #################################################
@@ -2034,6 +2056,31 @@ void Core::com_simu_read_can_thread_function( )
 						}
 					}
 				}
+                else if( ( ( frame.can_id ) >> 7 ) == CAN_ID_VER )
+                {
+                    if( ( ( frame.can_id ) % 16 ) == CAN_VER_POS )
+                    {
+                        asked_tool_position_access_.lock();
+                        asked_tool_position_ = frame.data[ 0 ];
+                        asked_tool_position_access_.unlock();
+
+                        ApiMoveActuatorPacketPtr api_move_actuator_packet = std::make_shared<ApiMoveActuatorPacket>( frame.data[ 0 ] );
+
+                        send_packet_list_access_.lock();
+                        send_packet_list_.push_back( api_move_actuator_packet );
+                        send_packet_list_access_.unlock();
+                    }
+                    else if( ( ( frame.can_id ) % 16 ) == CAN_VER_POS )
+                    {
+                        uint8_t data[1];
+
+                        tool_position_access_.lock();
+                        data[ 0 ] = tool_position_;
+                        tool_position_access_.unlock();
+
+                        com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_VER, ComSimuCanMessageType::CAN_VER_POS, data, 1 );
+                    }
+                }
 				else if( ( ( frame.can_id ) >> 7 ) == CAN_ID_TELECO )
 				{
 					// std::cout << "CAN_ID_TELECO" << std::endl;

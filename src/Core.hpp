@@ -399,6 +399,12 @@ private:
 	uint64_t last_text_keyboard_hit_time_;
 
 	std::thread	gps_manager_thread_;
+
+    std::mutex tool_position_access_;
+    uint8_t tool_position_;
+
+    std::mutex asked_tool_position_access_;
+    uint8_t asked_tool_position_;
 };
 
 #endif
