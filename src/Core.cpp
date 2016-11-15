@@ -136,6 +136,9 @@ Core::Core( ) :
 	com_simu_remote_status_.analog_x = 63;
 	com_simu_remote_status_.analog_y = 63;
 
+	com_simu_remote_status_.tool_down = false;
+	com_simu_remote_status_.tool_up = false;
+
 	com_simu_remote_status_.teleco_self_id_6 = 255;
 	com_simu_remote_status_.teleco_act_7 = 253;
 
@@ -343,6 +346,10 @@ Core::main_thread( )
 				{
 					com_simu_remote_status_.analog_x = 127;
 					com_simu_remote_status_.analog_y = 127;
+
+					com_simu_remote_status_.tool_down = false;
+					com_simu_remote_status_.tool_up = false;
+
 					com_simu_remote_status_.arr_left = false;
 					com_simu_remote_status_.arr_right = false;
 					com_simu_remote_status_.pad_up = false;
@@ -378,6 +385,8 @@ void Core::text_keyboard_reader_thread_function( )
 
 	com_simu_remote_status_.analog_x = 127;
 	com_simu_remote_status_.analog_y = 127;
+	com_simu_remote_status_.tool_down = false;
+	com_simu_remote_status_.tool_up = false;
 	com_simu_remote_status_.arr_left = false;
 	com_simu_remote_status_.arr_right = false;
 	com_simu_remote_status_.pad_up = false;
@@ -1030,6 +1039,19 @@ Core::manage_sdl_keyboard()
 		keyPressed = true;
 	}
 
+	if( sdl_key_[ SDL_SCANCODE_KP_PLUS ] == 1 )
+	{
+		com_simu_remote_status_.tool_up  = true;
+		keyPressed = true;
+	}
+
+	if( sdl_key_[ SDL_SCANCODE_KP_MINUS ] == 1 )
+	{
+		com_simu_remote_status_.tool_down  = true;
+
+		keyPressed = true;
+	}
+
 	if( sdl_key_[ SDL_SCANCODE_LEFT ] == 1 )
 	{
 		com_simu_remote_status_.analog_y = 5;
@@ -1185,6 +1207,16 @@ Core::manage_sdl_keyboard()
 	if( sdl_key_[ SDL_SCANCODE_UP ] == 0 and sdl_key_[ SDL_SCANCODE_DOWN ] == 0 )
 	{
 		com_simu_remote_status_.analog_x = 128;
+	}
+
+	if( sdl_key_[ SDL_SCANCODE_KP_PLUS ] == 0 )
+	{
+		com_simu_remote_status_.tool_up = false;
+	}
+
+	if( sdl_key_[ SDL_SCANCODE_KP_MINUS ] == 0 )
+	{
+		com_simu_remote_status_.tool_down = false;
 	}
 
 	if( sdl_key_[ SDL_SCANCODE_KP_6 ] == 0 )
@@ -2173,6 +2205,17 @@ void Core::send_remote_can_packet( ComSimuCanMessageType message_type )
 		{
 			buttons1 = ( buttons1 | ( 0x01 << 3 ) );
 		}
+
+		if( com_simu_remote_status_.tool_down )
+		{
+			buttons1 = ( buttons1 | ( 0x01 << 6 ) );
+		}
+
+		if( com_simu_remote_status_.tool_up )
+		{
+			buttons1 = ( buttons1 | ( 0x01 << 4 ) );
+		}
+
 
 		remote_data[ 0 ] = com_simu_remote_status_.analog_x;
 		remote_data[ 1 ] = com_simu_remote_status_.analog_y;

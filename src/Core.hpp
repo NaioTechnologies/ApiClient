@@ -133,6 +133,9 @@ public:
 		bool pad_right;
 		bool pad_down;
 
+		bool tool_up;
+		bool tool_down;
+
 		uint8_t analog_x;
 		uint8_t analog_y;
 
