@@ -9,6 +9,7 @@
 #include <ApiCommandPacket.hpp>
 #include <zlib.h>
 #include <ApiWatchdogPacket.hpp>
+#include <ApiMoveActuatorPacket.hpp>
 #include "Core.hpp"
 
 using namespace std;
@@ -701,6 +702,7 @@ Core::manageSDLKeyboard()
 
     int8_t left = 0;
     int8_t right = 0;
+    int8_t pos = 0;
 
     if( sdlKey_[ SDL_SCANCODE_ESCAPE ] == 1)
     {
@@ -718,6 +720,19 @@ Core::manageSDLKeyboard()
     {
         asked_stop_video_ = true;
     }
+
+    if( sdlKey_[ SDL_SCANCODE_KP_PLUS ] == 1 )
+    {
+        pos = 1;
+        keyPressed = true;
+    }
+
+    if( sdlKey_[ SDL_SCANCODE_KP_MINUS ] == 1 )
+    {
+        pos = 2;
+        keyPressed = true;
+    }
+
 
     if( sdlKey_[ SDL_SCANCODE_UP ] == 1 and sdlKey_[ SDL_SCANCODE_LEFT ] == 1 )
     {
@@ -773,6 +788,10 @@ Core::manageSDLKeyboard()
     last_left_motor_ = static_cast<int8_t >( left * 2 );
     last_right_motor_ = static_cast<int8_t >( right * 2 );
     last_motor_access_.unlock();
+
+    last_actuator_access_.lock();
+    last_actuator_ = static_cast<int8_t >( pos );
+    last_actuator_access_.unlock();
 
     return keyPressed;
 }
@@ -1133,9 +1152,16 @@ void Core::server_write_thread( )
 
         last_motor_access_.unlock();
 
+        last_actuator_access_.lock();
+
+        ApiMoveActuatorPacketPtr ApiMoveActuatorPacketPtr = std::make_shared<ApiMoveActuatorPacket>( last_actuator_ );
+
+        last_actuator_access_.unlock();
+
         sendPacketListAccess_.lock();
 
         sendPacketList_.push_back( haMotorsPacketPtr );
+        sendPacketList_.push_back( ApiMoveActuatorPacketPtr );
 
         for( auto&& packet : sendPacketList_ )
         {

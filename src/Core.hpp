@@ -187,6 +187,8 @@ private:
 	std::mutex last_motor_access_;
 	int8_t last_left_motor_;
 	int8_t last_right_motor_;
+    std::mutex last_actuator_access_;
+    int8_t  last_actuator_;
 
 	uint64_t last_image_received_time_;
 
