@@ -2092,6 +2092,8 @@ void Core::com_simu_read_can_thread_function( )
                 {
                     if( ( ( frame.can_id ) % 16 ) == CAN_VER_CONS )
                     {
+
+                        std::cout << "ORDRE VERIN RECU" << static_cast<int>( frame.data[ 0 ] )<< std::endl;
                         asked_tool_position_access_.lock();
                         asked_tool_position_ = frame.data[ 0 ];
                         asked_tool_position_access_.unlock();
@@ -2100,6 +2102,7 @@ void Core::com_simu_read_can_thread_function( )
 
                         send_packet_list_access_.lock();
                         send_packet_list_.push_back( api_move_actuator_packet );
+                        std::cout << "ORDRE VERIN ENVOYE" << static_cast<int>( frame.data[ 0 ] )<< std::endl;
                         send_packet_list_access_.unlock();
                     }
                     else if( ( ( frame.can_id ) % 16 ) == CAN_VER_POS )
