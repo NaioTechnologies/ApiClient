@@ -2090,7 +2090,7 @@ void Core::com_simu_read_can_thread_function( )
 				}
                 else if( ( ( frame.can_id ) >> 7 ) == CAN_ID_VER )
                 {
-                    if( ( ( frame.can_id ) % 16 ) == CAN_VER_POS )
+                    if( ( ( frame.can_id ) % 16 ) == CAN_VER_CONS )
                     {
                         asked_tool_position_access_.lock();
                         asked_tool_position_ = frame.data[ 0 ];
