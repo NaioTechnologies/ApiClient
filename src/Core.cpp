@@ -90,7 +90,7 @@ Core::Core( ) :
 		//graphicThread_{ },
 		main_thread_{ },
 		host_adress_{ "10.0.1.1" },
-		host_port_{ 5555 },
+		host_port_{ 5559 },
 		socket_connected_{false},
 		naio_codec_{ },
 		send_packet_list_{ },
@@ -1372,7 +1372,7 @@ void Core::image_server_thread( )
 
 	imageServer.sin_addr.s_addr = inet_addr( host_adress_.c_str() );
 	imageServer.sin_family = AF_INET;
-	imageServer.sin_port = htons( static_cast<uint16_t>( host_port_ + 2 ) );
+	imageServer.sin_port = htons( static_cast<uint16_t>( host_port_ - 2 ) );
 
 	//Connect to remote server
 	if ( connect( image_socket_desc_, ( struct sockaddr * ) &imageServer, sizeof( imageServer ) ) < 0 )
