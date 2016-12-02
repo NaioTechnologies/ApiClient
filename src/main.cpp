@@ -1,7 +1,7 @@
 #include "Core.hpp"
 #include <sys/resource.h>
 
-#define PORT_ROBOT_MOTOR 5555
+#define PORT_ROBOT_MOTOR 5559
 #define DEFAULT_HOST_ADDRESS "127.0.0.1"
 
 int main( int argc, char** argv )
