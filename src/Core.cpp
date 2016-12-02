@@ -24,7 +24,7 @@ Core::Core( ) :
         threadStarted_{ false },
         graphicThread_{ },
         hostAdress_{ "10.0.1.1" },
-        hostPort_{ 5555 },
+        hostPort_{ 5559 },
         socketConnected_{false},
         naioCodec_{ },
         sendPacketList_{ },
