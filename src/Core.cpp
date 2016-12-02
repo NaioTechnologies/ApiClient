@@ -906,7 +906,7 @@ void Core::image_server_thread( )
     imageServer.sin_addr.s_addr = inet_addr( hostAdress_.c_str() );
     imageServer.sin_family = AF_INET;
 
-    imageServer.sin_port = htons( static_cast<uint16_t>( hostPort_ - 2 ) );
+    imageServer.sin_port = htons( static_cast<uint16_t>( 5557 ) );
     //imageServer.sin_port = htons( static_cast<uint16_t>( 5558 ) );
 
     //Connect to remote server
