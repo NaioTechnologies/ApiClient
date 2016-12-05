@@ -23,7 +23,7 @@ Core::Core( ) :
         stopThreadAsked_{ false },
         threadStarted_{ false },
         graphicThread_{ },
-        hostAdress_{ "10.0.1.1" },
+        hostAdress_{ "127.0.0.1" },
         hostPort_{ 5559 },
         socketConnected_{false},
         naioCodec_{ },
@@ -173,7 +173,7 @@ void Core::server_read_thread( )
             bool atLeastOnePacketReceived = naioCodec_.decode( receiveBuffer, static_cast<uint>( readSize ), packetHeaderDetected );
 
             // manage received messages
-            if ( atLeastOnePacketReceived == true )
+            if (atLeastOnePacketReceived)
             {
                 for ( auto &&packetPtr : naioCodec_.currentBasePacketList )
                 {
@@ -907,7 +907,6 @@ void Core::image_server_thread( )
     imageServer.sin_family = AF_INET;
 
     imageServer.sin_port = htons( static_cast<uint16_t>( 5557 ) );
-    //imageServer.sin_port = htons( static_cast<uint16_t>( 5558 ) );
 
     //Connect to remote server
     if ( connect( image_socket_desc_, ( struct sockaddr * ) &imageServer, sizeof( imageServer ) ) < 0 )
