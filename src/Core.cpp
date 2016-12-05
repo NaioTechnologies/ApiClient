@@ -263,9 +263,9 @@ Core::init( bool graphical_display_on, std::string hostAdress, uint16_t hostPort
 
 	com_simu_remote_thread_= std::thread( &Core::com_simu_remote_thread_function, this );
 
-	// bridge simulatos images
-	com_simu_image_to_core_read_thread_ = std::thread( &Core::com_simu_image_to_core_read_thread_function, this );
-	com_simu_image_to_core_write_thread_ = std::thread( &Core::com_simu_image_to_core_write_thread_function, this );
+	// bridge simuloz images
+//	com_simu_image_to_core_read_thread_ = std::thread( &Core::com_simu_image_to_core_read_thread_function, this );
+//	com_simu_image_to_core_write_thread_ = std::thread( &Core::com_simu_image_to_core_write_thread_function, this );
 
 	gps_manager_thread_ = std::thread( &Core::gps_manager_thread_function , this );
 }
@@ -290,7 +290,7 @@ void Core::server_read_thread( )
 			bool atLeastOnePacketReceived = naio_codec_.decode( receiveBuffer, static_cast<uint>( readSize ), packetHeaderDetected );
 
 			// manage received messages
-			if ( atLeastOnePacketReceived == true )
+			if ( atLeastOnePacketReceived )
 			{
 				for ( auto &&packetPtr : naio_codec_.currentBasePacketList )
 				{
@@ -1372,12 +1372,12 @@ void Core::image_server_thread( )
 
 	imageServer.sin_addr.s_addr = inet_addr( host_adress_.c_str() );
 	imageServer.sin_family = AF_INET;
-	imageServer.sin_port = htons( static_cast<uint16_t>( host_port_ - 2 ) );
+	imageServer.sin_port = htons( static_cast<uint16_t>( 5557 ) );
 
 	//Connect to remote server
 	if ( connect( image_socket_desc_, ( struct sockaddr * ) &imageServer, sizeof( imageServer ) ) < 0 )
 	{
-		puts( "image connect error" );
+		puts( "image connect error 5557" );
 	}
 	else
 	{
@@ -1428,7 +1428,6 @@ void Core::image_server_read_thread( )
 		image_socket_desc_access_.lock();
 
 		// any time : read incoming messages.
-		//int readSize = (int) read( image_socket_desc_, receiveBuffer, 4000000 );
 		int readSize = (int)recv( image_socket_desc_, receiveBuffer, 16384, MSG_DONTWAIT );
 
 		image_socket_desc_access_.unlock();
@@ -1440,7 +1439,7 @@ void Core::image_server_read_thread( )
 			bool atLeastOnePacketReceived = image_naio_codec_.decode( receiveBuffer, static_cast<uint>( readSize ), packetHeaderDetected );
 
 			// manage received messages
-			if ( atLeastOnePacketReceived == true )
+			if (atLeastOnePacketReceived)
 			{
 				for ( auto &&packetPtr : image_naio_codec_.currentBasePacketList )
 				{
