@@ -52,72 +52,30 @@ public:
 	enum ComSimuCanMessageId : unsigned char
 	{
 		CAN_ID_GEN = 0x00,
-		//CAN_ID_ODO = 0x00,
-		CAN_ID_ODO = 0x08,
-		CAN_ID_MD = 0x01,
-		CAN_ID_MG = 0x02,
 		CAN_ID_IMU = 0x03,
 		CAN_ID_GPS = 0x04,
-		CAN_ID_GSM = 0x05,
-		CAN_ID_ISM = 0x06,
 		CAN_ID_IHM = 0x07,
 		CAN_ID_VER = 0x08,
-		CAN_ID_BMS = 0x09,
-		CAN_ID_OTHER_ROBOT = 0x0a,
 		CAN_ID_TELECO = 0x0b,
 	};
 
 	enum ComSimuCanMessageType  : unsigned char
 	{
-		CAN_MOT_ODO = 0x03,/*AVD, ARD, ARG, AVG*/
-		/*CAN_MOT_ODO = 0x00,*//*AVD, ARD, ARG, AVG*/
-
 		CAN_MOT_CONS = 0x00,
 
 		CAN_IMU_ACC = 0x00,
 		CAN_IMU_GYRO = 0x01,
-		CAN_IMU_MAG = 0x02,
-
-		CAN_IMU_SET_CHANNEL = 0x0b,
 
 		CAN_TELECO_KEYS = 0x01,
-		CAN_TELECO_LED = 0x00,
-		CAN_TELECO_SET_CHANNEL = 0x04,
 		CAN_TELECO_NUM_VERSION = 0x06,
 
 		CAN_GPS_DATA = 0x00,
 
-		CAN_GSM_ORDER = 0x01,
-		CAN_GSM_DATA = 0x00,
-
 		CAN_IHM_LCD = 0x00,
 		CAN_IHM_BUT = 0x01,
-		CAN_IHM_BUZ = 0x03,
-		CAN_IHM_DEL_KEY = 0x05,
-		CAN_IHM_LED = 0x02,
-		CAN_IHM_CONTRASTE = 0x07,
 
 		CAN_VER_CONS = 0x02,
-		//0 up, 3 down, 1 || 2 still,
-				CAN_VER_POS = 0x01,
-
-		CAN_VER_BATT = 0x07,
-
-		CAN_GEN_TEMP = 0x0e,
-		CAN_GEN_PULVE = 0x0d,
-
-		CAN_BMS_TENSION = 0x00,
-		CAN_BMS_COURANT = 0x01,
-		CAN_BMS_STATUS = 0x02,
-		CAN_BMS_READ_SETUP = 0x03,
-		CAN_BMS_VERSION_SOFT = 0x07,
-		CAN_BMS_VERSION_HARD = 0x08,
-		CAN_BMS_SET_SETUP = 0x0a,
-
-		CAN_OTHER_ROBOT_TX_DATA = 0x00,
-		CAN_OTHER_ROBOT_RX_DATA = 0x01,
-		CAN_OTHER_ROBOT_TX_ORDER = 0x02,
-		CAN_OTHER_ROBOT_RX_ORDER = 0x03,
+		CAN_VER_POS = 0x01,
 	};
 
 	typedef struct _COM_SIMU_REMOTE_STATUS_
@@ -158,16 +116,12 @@ public:
 	const int64_t SERVER_SEND_COMMAND_RATE_MS = 10;
 	const int64_t WAIT_SERVER_IMAGE_TIME_RATE_MS = 5;
 	const int64_t IMAGE_SERVER_WATCHDOG_SENDING_RATE_MS = 100;
-	const int64_t IMAGE_PREPARING_RATE_MS = 25;
 
 	const int64_t TIME_BEFORE_IMAGE_LOST_MS = 500;
 
-	const std::string COM_SIMU_DEFAULT_SIMU_IP = "192.168.1.106";
-	const int COM_SIMU_DEFAULT_SIMU_PORT = 5555;
+	const int SIMULATOR_IMAGE_PORT = 5557;
 
-	const int COM_SIMU_RAW_IMAGE_PORT = 5558;
-
-	const int COM_SIMU_PORT_CORE_LIDAR = 2213;
+	const int OZCORE_LIDAR_PORT = 2213;
 
 	const int64_t COM_SIMU_REMOTE_SEND_RATE_MS = 100;
 
@@ -179,31 +133,26 @@ public:
 	// launch core
 	void init( bool graphical_display_on, std::string hostAdress_, uint16_t hostPort_ );
 
-	// thread management
-	void join_main_thread();
-
 private:
 	// thread function
 	void main_thread( );
 	void graphic_thread( );
 
-	// main server 5555 thread function
+	// main server 5559 thread function
 	void server_read_thread( );
 	void server_write_thread( );
-	void image_preparer_thread( );
 
 	// images server 5557 thread function
 	void image_server_thread( );
 	void image_server_read_thread( );
 	void image_server_write_thread( );
+    void image_preparer_thread( );
 
 	// communications
 	void manage_received_packet(BaseNaio01PacketPtr packetPtr);
 
 	// graph
 	SDL_Window *init_sdl(const char *name, int szX, int szY);
-
-	void exitSDL();
 
 	void read_sdl_keyboard();
 	bool manage_sdl_keyboard();
@@ -227,26 +176,19 @@ private:
 
 	void com_simu_read_can_thread_function( );
 
-	void com_simu_image_to_core_read_thread_function( ) ;
-	void com_simu_image_to_core_write_thread_function( ) ;
-
-
 	void send_remote_can_packet( ComSimuCanMessageType message_type );
 
 	void send_keypad_can_packet( );
 
 	int64_t get_now_ms();
 
-	void com_simu_image_to_core_client_disconnected();
-
-	void simaltoz_image_displayer_starter_thread_function();
-	void start_simaltoz_image_display();
-	void stop_simaltoz_image_display();
+	void image_displayer_starter_thread_function();
+	void start_image_display();
+	void stop_image_display();
 
 	void text_keyboard_reader_thread_function( );
 
 	void gps_manager_thread_function( );
-	void gps_manager( );
 
 	double get_north_bearing( double lat1, double lon1, double lat2, double lon2 );
 
@@ -370,21 +312,6 @@ private:
 
 	bool com_simu_serial_connected_;
 
-	// Image to core bridge
-	bool com_simu_image_to_core_client_connected_;
-	std::mutex com_simu_image_to_core_socket_access_;
-	int com_simu_image_to_core_server_socket_;
-	int com_simu_image_to_core_client_socket_;
-	std::thread	com_simu_image_to_core_read_thread_;
-	std::thread	com_simu_image_to_core_write_thread_;
-	uint64_t com_simu_image_to_core_last_activity_;
-
-	std::mutex image_buffer_for_ozcore_access_;
-	//cl_copy::BufferUPtr com_simu_image_to_core_buffer_;
-	uint64_t com_simu_image_to_core_buffer_updated_time_;
-
-	char image_buffer_for_ozcore[ 721920 ];
-
 	std::mutex image_socket_desc_access_;
 
 	bool display_simuloz_camera_;
@@ -392,8 +319,8 @@ private:
 	bool stop_image_preparer_thread_asked_;
 	bool image_prepared_thread_started_;
 	uint64_t last_image_displayer_action_time_ms_;
-	std::thread	simaltoz_image_displayer_starter_thread_;
-	bool asked_simaltoz_image_displayer_start_;
+	std::thread	image_displayer_starter_thread_;
+	bool asked_image_displayer_start_;
 	std::mutex simulatoz_image_actionner_access_;
 
 
