@@ -1788,11 +1788,14 @@ void Core::stop_image_display()
 
 void Core::com_simu_create_virtual_can( )
 {
-    (void)( system( "modprobe can" ) + 1 );
-    (void)( system( "modprobe can_raw" ) + 1 );
-    (void)( system( "modprobe vcan" ) + 1 );
-    (void)( system( "ip link add dev can0 type vcan" ) + 1 );
-    (void)( system( "ip link set up can0" ) + 1 );
+//    (void)( system( "modprobe can" ) + 1 );
+//    (void)( system( "modprobe can_raw" ) + 1 );
+//    (void)( system( "modprobe vcan" ) + 1 );
+//    (void)( system( "ip link add dev can0 type vcan" ) + 1 );
+//    (void)( system( "ip link set up can0" ) + 1 );
+
+    //sudo ip link set can0 type can bitrate 125000
+    //sudo modprobe pcan assign=pcan32:can0
 }
 
 // ##################################################################################################
