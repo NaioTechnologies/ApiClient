@@ -1967,37 +1967,44 @@ void Core::com_simu_lidar_to_core_thread_function( )
 
 void Core::com_simu_connect_can( )
 {
-    struct sockaddr_can addr;
-    struct ifreq ifr;
-
-    const char *ifname = "can0";
-
-    printf( "Connecting Can\n" );
-
-    // Create the CAN socket
-    com_simu_can_socket_ = socket( PF_CAN, SOCK_RAW, CAN_RAW );
-    printf( "Can sock : %d\n", com_simu_can_socket_ );
-
-    strcpy( ifr.ifr_name, ifname );
-    ioctl( com_simu_can_socket_, SIOCGIFINDEX, &ifr );
-
-    addr.can_family  = AF_CAN;
-    addr.can_ifindex = ifr.ifr_ifindex;
-
-    printf( "Can : %s at index %d\n", ifname, ifr.ifr_ifindex );
-
-    if( bind( com_simu_can_socket_, ( struct sockaddr * ) &addr, sizeof( addr ) ) < 0 )
+    try
     {
-        perror( "Error in can socket bind" );
-        //return -2;
-        return;
+        struct sockaddr_can addr;
+        struct ifreq ifr;
+
+        const char *ifname = "can0";
+
+        printf( "Connecting Can\n" );
+
+        // Create the CAN socket
+        com_simu_can_socket_ = socket( PF_CAN, SOCK_RAW, CAN_RAW );
+        printf( "Can sock : %d\n", com_simu_can_socket_ );
+
+        strcpy( ifr.ifr_name, ifname );
+        ioctl( com_simu_can_socket_, SIOCGIFINDEX, &ifr );
+
+        addr.can_family  = AF_CAN;
+        addr.can_ifindex = ifr.ifr_ifindex;
+
+        printf( "Can : %s at index %d\n", ifname, ifr.ifr_ifindex );
+
+        if( bind( com_simu_can_socket_, ( struct sockaddr * ) &addr, sizeof( addr ) ) < 0 )
+        {
+            perror( "Error in can socket bind" );
+            //return -2;
+            return;
+        }
+
+        com_simu_can_connected_ = true;
+
+        printf( "Can Connected\n" );
+
+        //return 0;
+    }
+    catch ( std::exception e ) {
+        std::cout<<"Exception connect_can catch : "<< e.what() << std::endl;
     }
 
-    com_simu_can_connected_ = true;
-
-    printf( "Can Connected\n" );
-
-    //return 0;
 }
 
 // ##################################################################################################
@@ -2006,94 +2013,101 @@ void Core::com_simu_connect_can( )
 
 void Core::com_simu_transform_and_write_to_can( BaseNaio01PacketPtr packetPtr )
 {
-    if( std::dynamic_pointer_cast<HaOdoPacket>( packetPtr )  )
-    {
-        HaOdoPacketPtr haOdoPacketPtr = std::dynamic_pointer_cast<HaOdoPacket>( packetPtr );
+    try {
 
-        if( com_simu_last_ha_odo_packet_ptr_ != nullptr )
+        if( std::dynamic_pointer_cast<HaOdoPacket>( packetPtr )  )
         {
-            if( com_simu_last_ha_odo_packet_ptr_->fr != haOdoPacketPtr->fr )
+            HaOdoPacketPtr haOdoPacketPtr = std::dynamic_pointer_cast<HaOdoPacket>( packetPtr );
+
+            if( com_simu_last_ha_odo_packet_ptr_ != nullptr )
             {
-                com_simu_last_odo_ticks_[ 0 ] = not com_simu_last_odo_ticks_[ 0 ];
+                if( com_simu_last_ha_odo_packet_ptr_->fr != haOdoPacketPtr->fr )
+                {
+                    com_simu_last_odo_ticks_[ 0 ] = not com_simu_last_odo_ticks_[ 0 ];
+                }
+
+                if( com_simu_last_ha_odo_packet_ptr_->fl != haOdoPacketPtr->fl )
+                {
+                    com_simu_last_odo_ticks_[ 1 ] = not com_simu_last_odo_ticks_[ 1 ];
+                }
+
+                if( com_simu_last_ha_odo_packet_ptr_->rr != haOdoPacketPtr->rr )
+                {
+                    com_simu_last_odo_ticks_[ 2 ] = not com_simu_last_odo_ticks_[ 2 ];
+                }
+
+                if( com_simu_last_ha_odo_packet_ptr_->rl != haOdoPacketPtr->rl )
+                {
+                    com_simu_last_odo_ticks_[ 3 ] = not com_simu_last_odo_ticks_[ 3 ];
+                }
             }
 
-            if( com_simu_last_ha_odo_packet_ptr_->fl != haOdoPacketPtr->fl )
+            uint8_t data[ 1 ];
+
+            data[ 0 ] = 0x00;
+
+            if( com_simu_last_odo_ticks_[ 0 ] )
             {
-                com_simu_last_odo_ticks_[ 1 ] = not com_simu_last_odo_ticks_[ 1 ];
+                data[ 0 ] = ( data[ 0 ] | ( 0x01 << 0 ) );
             }
 
-            if( com_simu_last_ha_odo_packet_ptr_->rr != haOdoPacketPtr->rr )
+            if( com_simu_last_odo_ticks_[ 1 ] )
             {
-                com_simu_last_odo_ticks_[ 2 ] = not com_simu_last_odo_ticks_[ 2 ];
+                data[ 0 ] = ( data[ 0 ] | ( 0x01 << 1 ) );
             }
 
-            if( com_simu_last_ha_odo_packet_ptr_->rl != haOdoPacketPtr->rl )
+            if( com_simu_last_odo_ticks_[ 2 ] )
             {
-                com_simu_last_odo_ticks_[ 3 ] = not com_simu_last_odo_ticks_[ 3 ];
+                data[ 0 ] = ( data[ 0 ] | ( 0x01 << 2 ) );
             }
+
+            if( com_simu_last_odo_ticks_[ 3 ] )
+            {
+                data[ 0 ] = ( data[ 0 ] | ( 0x01 << 3 ) );
+            }
+
+            com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GEN, ComSimuCanMessageType::CAN_MOT_CONS, data, 1 );
+
+            com_simu_last_ha_odo_packet_ptr_ = haOdoPacketPtr;
         }
-
-        uint8_t data[ 1 ];
-
-        data[ 0 ] = 0x00;
-
-        if( com_simu_last_odo_ticks_[ 0 ] )
+        else if( std::dynamic_pointer_cast<HaGyroPacket>( packetPtr )  )
         {
-            data[ 0 ] = ( data[ 0 ] | ( 0x01 << 0 ) );
-        }
+            HaGyroPacketPtr haGyroPacketPtr = std::dynamic_pointer_cast<HaGyroPacket>( packetPtr );
 
-        if( com_simu_last_odo_ticks_[ 1 ] )
+            uint8_t data[ 6 ];
+
+            data[ 0 ] = ( haGyroPacketPtr->x >> 8 ) & 0xFF;
+            data[ 1 ] = ( haGyroPacketPtr->x >> 0 ) & 0xFF;
+
+            data[ 2 ] = ( haGyroPacketPtr->y >> 8 ) & 0xFF;
+            data[ 3 ] = ( haGyroPacketPtr->y >> 0 ) & 0xFF;
+
+            data[ 4 ] = ( haGyroPacketPtr->z >> 8 ) & 0xFF;
+            data[ 5 ] = ( haGyroPacketPtr->z >> 0 ) & 0xFF;
+
+            com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_IMU, ComSimuCanMessageType::CAN_IMU_GYRO, data, 6 );
+        }
+        else if( std::dynamic_pointer_cast<HaAcceleroPacket>( packetPtr )  )
         {
-            data[ 0 ] = ( data[ 0 ] | ( 0x01 << 1 ) );
+            HaAcceleroPacketPtr haAcceleroPacketPtr = std::dynamic_pointer_cast<HaAcceleroPacket>( packetPtr );
+
+            uint8_t data[ 6 ];
+
+            data[ 0 ] = ( haAcceleroPacketPtr->x >> 8 ) & 0xFF;
+            data[ 1 ] = ( haAcceleroPacketPtr->x >> 0 ) & 0xFF;
+
+            data[ 2 ] = ( haAcceleroPacketPtr->y >> 8 ) & 0xFF;
+            data[ 3 ] = ( haAcceleroPacketPtr->y >> 0 ) & 0xFF;
+
+            data[ 4 ] = ( haAcceleroPacketPtr->z >> 8 ) & 0xFF;
+            data[ 5 ] = ( haAcceleroPacketPtr->z >> 0 ) & 0xFF;
+
+            com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_IMU, ComSimuCanMessageType::CAN_IMU_ACC, data, 6 );
         }
 
-        if( com_simu_last_odo_ticks_[ 2 ] )
-        {
-            data[ 0 ] = ( data[ 0 ] | ( 0x01 << 2 ) );
-        }
-
-        if( com_simu_last_odo_ticks_[ 3 ] )
-        {
-            data[ 0 ] = ( data[ 0 ] | ( 0x01 << 3 ) );
-        }
-
-        com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GEN, ComSimuCanMessageType::CAN_MOT_CONS, data, 1 );
-
-        com_simu_last_ha_odo_packet_ptr_ = haOdoPacketPtr;
     }
-    else if( std::dynamic_pointer_cast<HaGyroPacket>( packetPtr )  )
-    {
-        HaGyroPacketPtr haGyroPacketPtr = std::dynamic_pointer_cast<HaGyroPacket>( packetPtr );
-
-        uint8_t data[ 6 ];
-
-        data[ 0 ] = ( haGyroPacketPtr->x >> 8 ) & 0xFF;
-        data[ 1 ] = ( haGyroPacketPtr->x >> 0 ) & 0xFF;
-
-        data[ 2 ] = ( haGyroPacketPtr->y >> 8 ) & 0xFF;
-        data[ 3 ] = ( haGyroPacketPtr->y >> 0 ) & 0xFF;
-
-        data[ 4 ] = ( haGyroPacketPtr->z >> 8 ) & 0xFF;
-        data[ 5 ] = ( haGyroPacketPtr->z >> 0 ) & 0xFF;
-
-        com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_IMU, ComSimuCanMessageType::CAN_IMU_GYRO, data, 6 );
-    }
-    else if( std::dynamic_pointer_cast<HaAcceleroPacket>( packetPtr )  )
-    {
-        HaAcceleroPacketPtr haAcceleroPacketPtr = std::dynamic_pointer_cast<HaAcceleroPacket>( packetPtr );
-
-        uint8_t data[ 6 ];
-
-        data[ 0 ] = ( haAcceleroPacketPtr->x >> 8 ) & 0xFF;
-        data[ 1 ] = ( haAcceleroPacketPtr->x >> 0 ) & 0xFF;
-
-        data[ 2 ] = ( haAcceleroPacketPtr->y >> 8 ) & 0xFF;
-        data[ 3 ] = ( haAcceleroPacketPtr->y >> 0 ) & 0xFF;
-
-        data[ 4 ] = ( haAcceleroPacketPtr->z >> 8 ) & 0xFF;
-        data[ 5 ] = ( haAcceleroPacketPtr->z >> 0 ) & 0xFF;
-
-        com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_IMU, ComSimuCanMessageType::CAN_IMU_ACC, data, 6 );
+    catch ( std::exception e ) {
+        std::cout<<"Exception write to can catch : "<< e.what() << std::endl;
     }
 }
 
@@ -2101,38 +2115,39 @@ void Core::com_simu_transform_and_write_to_can( BaseNaio01PacketPtr packetPtr )
 
 void Core::com_simu_send_can_packet( ComSimuCanMessageId id, ComSimuCanMessageType id_msg, uint8_t data[], uint8_t len )
 {
-    if ( not com_simu_can_connected_ )
-    {
-        return;
+    try {
+        if (not com_simu_can_connected_) {
+            return;
+        }
+
+        struct can_frame frame;
+        ssize_t nbytes = -1;
+        int nbTests = 0;
+
+        frame.can_id = (unsigned int) (id * 128 + id_msg);
+        frame.can_dlc = len;
+
+        for (uint8_t i = 0; i < len; i++) {
+            frame.data[i] = data[i];
+        }
+
+        while (nbytes <= 0 && nbTests < 10) {
+            com_simu_can_socket_access_.lock();
+
+            nbytes = write(com_simu_can_socket_, &frame, sizeof(struct can_frame));
+
+            com_simu_can_socket_access_.unlock();
+
+            nbTests++;
+            //usleep( 200 );
+        }
+
+        if (nbytes <= 0) {
+            std::cout << "Can write error." << std::endl;
+        }
     }
-
-    struct can_frame frame;
-    ssize_t nbytes = -1;
-    int nbTests = 0;
-
-    frame.can_id  = ( unsigned int )( id * 128 + id_msg );
-    frame.can_dlc = len;
-
-    for ( uint8_t i = 0 ; i < len ; i++ )
-    {
-        frame.data[ i ] = data[ i ];
-    }
-
-    while ( nbytes <= 0 && nbTests < 10 )
-    {
-        com_simu_can_socket_access_.lock();
-
-        nbytes = write( com_simu_can_socket_, &frame, sizeof( struct can_frame ) );
-
-        com_simu_can_socket_access_.unlock();
-
-        nbTests++;
-        //usleep( 200 );
-    }
-
-    if ( nbytes <= 0 )
-    {
-        std::cout << "Can write error." << std::endl;
+    catch ( std::exception e ) {
+        std::cout<<"Exception connect_can catch : "<< e.what() << std::endl;
     }
 }
 
@@ -2142,15 +2157,19 @@ void Core::com_simu_send_can_packet( ComSimuCanMessageId id, ComSimuCanMessageTy
 
 void Core::com_simu_remote_thread_function( )
 {
-    while( true )
-    {
-        send_remote_can_packet( CAN_TELECO_KEYS );
+    try {
+        while (true) {
+            send_remote_can_packet(CAN_TELECO_KEYS);
 
-        std::this_thread::sleep_for( std::chrono::milliseconds( COM_SIMU_REMOTE_SEND_RATE_MS / 2 ) );
+            std::this_thread::sleep_for(std::chrono::milliseconds(COM_SIMU_REMOTE_SEND_RATE_MS / 2));
 
-        send_keypad_can_packet( );
+            send_keypad_can_packet();
 
-        std::this_thread::sleep_for( std::chrono::milliseconds( COM_SIMU_REMOTE_SEND_RATE_MS / 2 ) );
+            std::this_thread::sleep_for(std::chrono::milliseconds(COM_SIMU_REMOTE_SEND_RATE_MS / 2));
+        }
+    }
+    catch ( std::exception e ) {
+        std::cout<<"Exception remote_thread catch : "<< e.what() << std::endl;
     }
 }
 
@@ -2160,84 +2179,91 @@ void Core::com_simu_remote_thread_function( )
 
 void Core::com_simu_read_can_thread_function( )
 {
-    ssize_t bytesRead;
+    try{
+        ssize_t bytesRead;
 
-    struct can_frame frame;
 
-    memset( &frame, 0, sizeof( frame ) );
+        struct can_frame frame;
 
-    while( true )
-    {
-        if( com_simu_can_connected_ )
+        memset( &frame, 0, sizeof( frame ) );
+
+        while( true )
         {
-
-            bytesRead = recv( com_simu_can_socket_, &frame, sizeof( frame ), 0 );
-
-            if ( bytesRead > 0 )
+            if( com_simu_can_connected_ )
             {
 
-                if( ( ( frame.can_id ) >> 7 ) == CAN_ID_IHM )
+                bytesRead = recv( com_simu_can_socket_, &frame, sizeof( frame ), 0 );
+
+                if ( bytesRead > 0 )
                 {
 
-                    if( ( ( frame.can_id ) % 16 ) == CAN_IHM_LCD )
+                    if( ( ( frame.can_id ) >> 7 ) == CAN_ID_IHM )
                     {
-                        uint8_t car_position = frame.data[ 1 ];
-                        char car = static_cast<char>( frame.data[ 2 ] );
 
-                        if( car_position < 16 )
+                        if( ( ( frame.can_id ) % 16 ) == CAN_IHM_LCD )
                         {
-                            com_simu_ihm_line_top_[ car_position ] = car;
+                            uint8_t car_position = frame.data[ 1 ];
+                            char car = static_cast<char>( frame.data[ 2 ] );
+
+                            if( car_position < 16 )
+                            {
+                                com_simu_ihm_line_top_[ car_position ] = car;
+                            }
+                            else
+                            {
+                                com_simu_ihm_line_bottom_[ car_position - 40 ] = car;
+                            }
                         }
-                        else
+                    }
+                    else if( ( ( frame.can_id ) >> 7 ) == CAN_ID_VER )
+                    {
+
+                        if( ( ( frame.can_id ) % 16 ) == CAN_VER_CONS )
                         {
-                            com_simu_ihm_line_bottom_[ car_position - 40 ] = car;
+
+                            asked_tool_position_access_.lock();
+                            asked_tool_position_ = frame.data[ 0 ];
+                            asked_tool_position_access_.unlock();
+
+                            ApiMoveActuatorPacketPtr api_move_actuator_packet = std::make_shared<ApiMoveActuatorPacket>( frame.data[ 0 ] );
+
+                            send_packet_list_access_.lock();
+                            send_packet_list_.push_back( api_move_actuator_packet );
+                            send_packet_list_access_.unlock();
+                        }
+                        else if( ( ( frame.can_id ) % 16 ) == CAN_VER_POS )
+                        {
+                            uint8_t data[1];
+
+                            tool_position_access_.lock();
+                            data[ 0 ] = tool_position_;
+                            tool_position_access_.unlock();
+
+                            com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_VER, ComSimuCanMessageType::CAN_VER_POS, data, 1 );
                         }
                     }
-                }
-                else if( ( ( frame.can_id ) >> 7 ) == CAN_ID_VER )
-                {
-
-                    if( ( ( frame.can_id ) % 16 ) == CAN_VER_CONS )
+                    else if( ( ( frame.can_id ) >> 7 ) == CAN_ID_TELECO )
                     {
+                        if( ( ( frame.can_id ) % 16 ) == CAN_TELECO_NUM_VERSION )
+                        {
+                            std::cout << "setting teleco act : " << static_cast<int>( frame.data[ 6 ] ) << " self_id : " << static_cast<int>(  frame.data[ 7 ] ) << std::endl;
 
-                        asked_tool_position_access_.lock();
-                        asked_tool_position_ = frame.data[ 0 ];
-                        asked_tool_position_access_.unlock();
+                            com_simu_remote_status_.teleco_self_id_6 = frame.data[ 7 ];
 
-                        ApiMoveActuatorPacketPtr api_move_actuator_packet = std::make_shared<ApiMoveActuatorPacket>( frame.data[ 0 ] );
-
-                        send_packet_list_access_.lock();
-                        send_packet_list_.push_back( api_move_actuator_packet );
-                        send_packet_list_access_.unlock();
-                    }
-                    else if( ( ( frame.can_id ) % 16 ) == CAN_VER_POS )
-                    {
-                        uint8_t data[1];
-
-                        tool_position_access_.lock();
-                        data[ 0 ] = tool_position_;
-                        tool_position_access_.unlock();
-
-                        com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_VER, ComSimuCanMessageType::CAN_VER_POS, data, 1 );
-                    }
-                }
-                else if( ( ( frame.can_id ) >> 7 ) == CAN_ID_TELECO )
-                {
-                    if( ( ( frame.can_id ) % 16 ) == CAN_TELECO_NUM_VERSION )
-                    {
-                        std::cout << "setting teleco act : " << static_cast<int>( frame.data[ 6 ] ) << " self_id : " << static_cast<int>(  frame.data[ 7 ] ) << std::endl;
-
-                        com_simu_remote_status_.teleco_self_id_6 = frame.data[ 7 ];
-
-                        send_remote_can_packet( CAN_TELECO_NUM_VERSION );
+                            send_remote_can_packet( CAN_TELECO_NUM_VERSION );
+                        }
                     }
                 }
             }
+            else
+            {
+                std::this_thread::sleep_for( std::chrono::milliseconds( 50 ) );
+            }
         }
-        else
-        {
-            std::this_thread::sleep_for( std::chrono::milliseconds( 50 ) );
-        }
+
+    }
+    catch ( std::exception e ) {
+        std::cout<<"Exception read can catch : "<< e.what() << std::endl;
     }
 }
 
@@ -2245,98 +2271,104 @@ void Core::com_simu_read_can_thread_function( )
 
 void Core::send_remote_can_packet( ComSimuCanMessageType message_type )
 {
-    uint8_t remote_data[ 8 ];
+    try{
+        uint8_t remote_data[ 8 ];
 
-    if( message_type == ComSimuCanMessageType::CAN_TELECO_KEYS )
-    {
-        uint8_t directional_cross = 0x00;
-        uint8_t buttons1 = 0x00;
 
-        if( com_simu_remote_status_.pad_up )
+        if( message_type == ComSimuCanMessageType::CAN_TELECO_KEYS )
         {
-            directional_cross = ( directional_cross | ( 0x01 << 3 ) );
-        }
+            uint8_t directional_cross = 0x00;
+            uint8_t buttons1 = 0x00;
 
-        if( com_simu_remote_status_.pad_left )
+            if( com_simu_remote_status_.pad_up )
+            {
+                directional_cross = ( directional_cross | ( 0x01 << 3 ) );
+            }
+
+            if( com_simu_remote_status_.pad_left )
+            {
+                directional_cross = ( directional_cross | ( 0x01 << 4 ) );
+            }
+
+            if( com_simu_remote_status_.pad_right )
+            {
+                directional_cross = ( directional_cross | ( 0x01 << 5 ) );
+            }
+
+            if( com_simu_remote_status_.pad_down )
+            {
+                directional_cross = ( directional_cross | ( 0x01 << 6 ) );
+            }
+
+            if( com_simu_remote_status_.secu_left )
+            {
+                buttons1 = ( buttons1 | ( 0x01 << 0 ) );
+            }
+
+            if( com_simu_remote_status_.secu_right )
+            {
+                buttons1 = ( buttons1 | ( 0x01 << 1 ) );
+            }
+
+            if( com_simu_remote_status_.arr_left )
+            {
+                buttons1 = ( buttons1 | ( 0x01 << 2 ) );
+            }
+
+            if( com_simu_remote_status_.arr_right )
+            {
+                buttons1 = ( buttons1 | ( 0x01 << 3 ) );
+            }
+
+            if( com_simu_remote_status_.tool_down )
+            {
+                buttons1 = ( buttons1 | ( 0x01 << 6 ) );
+            }
+
+            if( com_simu_remote_status_.tool_up )
+            {
+                buttons1 = ( buttons1 | ( 0x01 << 4 ) );
+            }
+
+            remote_data[ 0 ] = com_simu_remote_status_.analog_x;
+            remote_data[ 1 ] = com_simu_remote_status_.analog_y;
+
+            remote_data[ 2 ] = buttons1;
+            remote_data[ 3 ] = directional_cross;
+
+            remote_data[ 4 ] = 0x00;
+            remote_data[ 5 ] = 0x00;
+
+            remote_data[ 6 ] = com_simu_remote_status_.teleco_self_id_6;
+            remote_data[ 7 ] = com_simu_remote_status_.teleco_act_7;
+
+            com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_TELECO, ComSimuCanMessageType::CAN_TELECO_KEYS, remote_data, 8 );
+        }
+        else if( message_type == ComSimuCanMessageType::CAN_TELECO_NUM_VERSION )
         {
-            directional_cross = ( directional_cross | ( 0x01 << 4 ) );
+            remote_data[ 0 ] = 0x10;
+            remote_data[ 1 ] = 0x08;
+            remote_data[ 2 ] = 0x00;
+            remote_data[ 3 ] = 0x00;
+            remote_data[ 4 ] = 0x00;
+            remote_data[ 5 ] = 0x00;
+            remote_data[ 6 ] = com_simu_remote_status_.teleco_self_id_6;
+            remote_data[ 7 ] = com_simu_remote_status_.teleco_act_7;
+
+            if( com_simu_remote_status_.teleco_act_7 < 10 )
+            {
+                remote_data[ 2 ] = ( 4 + 128 );
+            }
+            else if( com_simu_remote_status_.teleco_act_7 > 10 )
+            {
+                remote_data[ 2 ] = ( 16 + 32 );
+            }
+
+            com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_TELECO, ComSimuCanMessageType::CAN_TELECO_NUM_VERSION, remote_data, 8 );
         }
-
-        if( com_simu_remote_status_.pad_right )
-        {
-            directional_cross = ( directional_cross | ( 0x01 << 5 ) );
-        }
-
-        if( com_simu_remote_status_.pad_down )
-        {
-            directional_cross = ( directional_cross | ( 0x01 << 6 ) );
-        }
-
-        if( com_simu_remote_status_.secu_left )
-        {
-            buttons1 = ( buttons1 | ( 0x01 << 0 ) );
-        }
-
-        if( com_simu_remote_status_.secu_right )
-        {
-            buttons1 = ( buttons1 | ( 0x01 << 1 ) );
-        }
-
-        if( com_simu_remote_status_.arr_left )
-        {
-            buttons1 = ( buttons1 | ( 0x01 << 2 ) );
-        }
-
-        if( com_simu_remote_status_.arr_right )
-        {
-            buttons1 = ( buttons1 | ( 0x01 << 3 ) );
-        }
-
-        if( com_simu_remote_status_.tool_down )
-        {
-            buttons1 = ( buttons1 | ( 0x01 << 6 ) );
-        }
-
-        if( com_simu_remote_status_.tool_up )
-        {
-            buttons1 = ( buttons1 | ( 0x01 << 4 ) );
-        }
-
-        remote_data[ 0 ] = com_simu_remote_status_.analog_x;
-        remote_data[ 1 ] = com_simu_remote_status_.analog_y;
-
-        remote_data[ 2 ] = buttons1;
-        remote_data[ 3 ] = directional_cross;
-
-        remote_data[ 4 ] = 0x00;
-        remote_data[ 5 ] = 0x00;
-
-        remote_data[ 6 ] = com_simu_remote_status_.teleco_self_id_6;
-        remote_data[ 7 ] = com_simu_remote_status_.teleco_act_7;
-
-        com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_TELECO, ComSimuCanMessageType::CAN_TELECO_KEYS, remote_data, 8 );
     }
-    else if( message_type == ComSimuCanMessageType::CAN_TELECO_NUM_VERSION )
-    {
-        remote_data[ 0 ] = 0x10;
-        remote_data[ 1 ] = 0x08;
-        remote_data[ 2 ] = 0x00;
-        remote_data[ 3 ] = 0x00;
-        remote_data[ 4 ] = 0x00;
-        remote_data[ 5 ] = 0x00;
-        remote_data[ 6 ] = com_simu_remote_status_.teleco_self_id_6;
-        remote_data[ 7 ] = com_simu_remote_status_.teleco_act_7;
-
-        if( com_simu_remote_status_.teleco_act_7 < 10 )
-        {
-            remote_data[ 2 ] = ( 4 + 128 );
-        }
-        else if( com_simu_remote_status_.teleco_act_7 > 10 )
-        {
-            remote_data[ 2 ] = ( 16 + 32 );
-        }
-
-        com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_TELECO, ComSimuCanMessageType::CAN_TELECO_NUM_VERSION, remote_data, 8 );
+    catch ( std::exception e ) {
+        std::cout<<"Exception send_remote catch : "<< e.what() << std::endl;
     }
 }
 
@@ -2344,42 +2376,49 @@ void Core::send_remote_can_packet( ComSimuCanMessageType message_type )
 
 void Core::send_keypad_can_packet( )
 {
-    uint8_t keypad_data[ 1 ];
-    uint8_t buttons = 0;
+    try{
+        uint8_t keypad_data[ 1 ];
 
-    if( com_simu_ihm_button_status_.cancel )
-    {
-        buttons = ( buttons | ( 0x01 << 0 ) );
+        uint8_t buttons = 0;
+
+        if( com_simu_ihm_button_status_.cancel )
+        {
+            buttons = ( buttons | ( 0x01 << 0 ) );
+        }
+
+        if( com_simu_ihm_button_status_.validate )
+        {
+            buttons = ( buttons | ( 0x01 << 1 ) );
+        }
+
+        if( com_simu_ihm_button_status_.plus )
+        {
+            buttons = ( buttons | ( 0x01 << 2 ) );
+        }
+
+        if( com_simu_ihm_button_status_.minus )
+        {
+            buttons = ( buttons | ( 0x01 << 3 ) );
+        }
+
+        if( com_simu_ihm_button_status_.right )
+        {
+            buttons = ( buttons | ( 0x01 << 4 ) );
+        }
+
+        if( com_simu_ihm_button_status_.left )
+        {
+            buttons = ( buttons | ( 0x01 << 5 ) );
+        }
+
+        keypad_data[ 0 ] = buttons;
+
+        com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_IHM, ComSimuCanMessageType::CAN_IHM_BUT, keypad_data, 1 );
+
     }
-
-    if( com_simu_ihm_button_status_.validate )
-    {
-        buttons = ( buttons | ( 0x01 << 1 ) );
+    catch ( std::exception e ) {
+        std::cout<<"Exception send_keypad_can catch : "<< e.what() << std::endl;
     }
-
-    if( com_simu_ihm_button_status_.plus )
-    {
-        buttons = ( buttons | ( 0x01 << 2 ) );
-    }
-
-    if( com_simu_ihm_button_status_.minus )
-    {
-        buttons = ( buttons | ( 0x01 << 3 ) );
-    }
-
-    if( com_simu_ihm_button_status_.right )
-    {
-        buttons = ( buttons | ( 0x01 << 4 ) );
-    }
-
-    if( com_simu_ihm_button_status_.left )
-    {
-        buttons = ( buttons | ( 0x01 << 5 ) );
-    }
-
-    keypad_data[ 0 ] = buttons;
-
-    com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_IHM, ComSimuCanMessageType::CAN_IHM_BUT, keypad_data, 1 );
 }
 
 // ##################################################################################################
@@ -2398,163 +2437,169 @@ int64_t Core::get_now_ms( )
 
 void Core::gps_manager_thread_function( )
 {
-    uint64_t tick_duration_ms = 1000;
-    uint64_t now = get_now_ms();
-    uint64_t next_tick_time = now + tick_duration_ms;
+    try{
+        uint64_t tick_duration_ms = 1000;
 
-    while( not stop_main_thread_asked_ )
-    {
-        now = get_now_ms();
+        uint64_t now = get_now_ms();
+        uint64_t next_tick_time = now + tick_duration_ms;
 
-        if( now > next_tick_time )
+        while( not stop_main_thread_asked_ )
         {
-            ha_gps_packet_ptr_access_.lock();
-            HaGpsPacketPtr ha_gps_packet_ptr = ha_gps_packet_ptr_;
-            HaGpsPacketPtr previous_ha_gps_packet_ptr = previous_ha_gps_packet_ptr_;
-            ha_gps_packet_ptr_access_.unlock();
+            now = get_now_ms();
 
-            if( ha_gps_packet_ptr == nullptr )
+            if( now > next_tick_time )
             {
-                return;
-            }
+                ha_gps_packet_ptr_access_.lock();
+                HaGpsPacketPtr ha_gps_packet_ptr = ha_gps_packet_ptr_;
+                HaGpsPacketPtr previous_ha_gps_packet_ptr = previous_ha_gps_packet_ptr_;
+                ha_gps_packet_ptr_access_.unlock();
 
-            double track_orientation = 0.0;
+                if( ha_gps_packet_ptr == nullptr )
+                {
+                    return;
+                }
 
-            if( previous_ha_gps_packet_ptr != nullptr )
-            {
-                // compute speed and track orientation
-                track_orientation = get_north_bearing( previous_ha_gps_packet_ptr->lat, previous_ha_gps_packet_ptr->lon, ha_gps_packet_ptr->lat, ha_gps_packet_ptr->lon );
-            }
+                double track_orientation = 0.0;
 
-            //  #####################  RMC ####################
+                if( previous_ha_gps_packet_ptr != nullptr )
+                {
+                    // compute speed and track orientation
+                    track_orientation = get_north_bearing( previous_ha_gps_packet_ptr->lat, previous_ha_gps_packet_ptr->lon, ha_gps_packet_ptr->lat, ha_gps_packet_ptr->lon );
+                }
 
-            std::time_t rawtime;
-            std::tm* timeinfo;
+                //  #####################  RMC ####################
 
-            char hhmmss[ 80 ];
-            char ddmmyy[ 80 ];
-            char to[ 80 ];
-            char gs[ 80 ];
+                std::time_t rawtime;
+                std::tm* timeinfo;
 
-            std::time( &rawtime );
-            timeinfo = std::localtime( &rawtime );
+                char hhmmss[ 80 ];
+                char ddmmyy[ 80 ];
+                char to[ 80 ];
+                char gs[ 80 ];
 
-            sprintf( to, "%03.1f", track_orientation );
-            sprintf( gs, "%03.1f", ha_gps_packet_ptr_->groundSpeed );
+                std::time( &rawtime );
+                timeinfo = std::localtime( &rawtime );
 
-            std::strftime( hhmmss, 80, "%H%M%S", timeinfo );
-            std::strftime( ddmmyy, 80, "%d%m%y", timeinfo );
+                sprintf( to, "%03.1f", track_orientation );
+                sprintf( gs, "%03.1f", ha_gps_packet_ptr_->groundSpeed );
 
-            GeoAngle ns = GeoAngle::from_double( ha_gps_packet_ptr->lat );
-            GeoAngle we = GeoAngle::from_double( ha_gps_packet_ptr->lon );
+                std::strftime( hhmmss, 80, "%H%M%S", timeinfo );
+                std::strftime( ddmmyy, 80, "%d%m%y", timeinfo );
 
-            std::string gprmc =   string( "$GPRMC" ) + string( "," )
-                                  + string( hhmmss ) + string( "," )
-                                  + string( "A" ) + string( "," )
-                                  + ns.to_string( true ) + string( "," )
-                                  + we.to_string( false ) + string( "," )
-                                  + string( gs ) + string( "," )
-                                  + string( to ) + string( "," )
-                                  + string( ddmmyy ) + string( "," )
-                                  + string( "#" ) + string( "," )
-                                  + string( "*" );
+                GeoAngle ns = GeoAngle::from_double( ha_gps_packet_ptr->lat );
+                GeoAngle we = GeoAngle::from_double( ha_gps_packet_ptr->lon );
 
-            //  #####################  VTG ####################
+                std::string gprmc =   string( "$GPRMC" ) + string( "," )
+                                      + string( hhmmss ) + string( "," )
+                                      + string( "A" ) + string( "," )
+                                      + ns.to_string( true ) + string( "," )
+                                      + we.to_string( false ) + string( "," )
+                                      + string( gs ) + string( "," )
+                                      + string( to ) + string( "," )
+                                      + string( ddmmyy ) + string( "," )
+                                      + string( "#" ) + string( "," )
+                                      + string( "*" );
 
-            std::string gpvtg =   string( "$GPVTG" ) + string( "," )
-                                  + string( to ) + string( ",T," )
-                                  + string( to ) + string( ",M," )
-                                  + string( gs ) + string( ",N," )
-                                  + string( gs ) + string( ",K," )
-                                  + string( "*" );
+                //  #####################  VTG ####################
+
+                std::string gpvtg =   string( "$GPVTG" ) + string( "," )
+                                      + string( to ) + string( ",T," )
+                                      + string( to ) + string( ",M," )
+                                      + string( gs ) + string( ",N," )
+                                      + string( gs ) + string( ",K," )
+                                      + string( "*" );
 
 
-            //  #####################  GGA ####################
+                //  #####################  GGA ####################
 
-            char quality[ 80 ];
-            char nos[ 80 ];
-            char alt[ 80 ];
+                char quality[ 80 ];
+                char nos[ 80 ];
+                char alt[ 80 ];
 
-            sprintf( quality, "%d", static_cast<int>( ha_gps_packet_ptr_->quality ) );
-            sprintf( nos, "%02d", static_cast<int>( ha_gps_packet_ptr_->satUsed ) );
-            sprintf( alt, "%03.1f", ha_gps_packet_ptr_->alt );
+                sprintf( quality, "%d", static_cast<int>( ha_gps_packet_ptr_->quality ) );
+                sprintf( nos, "%02d", static_cast<int>( ha_gps_packet_ptr_->satUsed ) );
+                sprintf( alt, "%03.1f", ha_gps_packet_ptr_->alt );
 
-            std::string gpgga =   string( "$GPGGA" ) + string( "," )
-                                  + string( "#" ) + string( "," )
-                                  + string( "#" ) + string( "," )
-                                  + string( "#" ) + string( "," )
-                                  + string( "#" ) + string( "," )
-                                  + string( "#" ) + string( "," )
-                                  + string( quality ) + string( "," )
-                                  + string( nos ) + string( "," )
-                                  + string( "0.9" ) + string( "," )
-                                  + string( alt ) + string( ",M," )
-                                  + string( "*" );
+                std::string gpgga =   string( "$GPGGA" ) + string( "," )
+                                      + string( "#" ) + string( "," )
+                                      + string( "#" ) + string( "," )
+                                      + string( "#" ) + string( "," )
+                                      + string( "#" ) + string( "," )
+                                      + string( "#" ) + string( "," )
+                                      + string( quality ) + string( "," )
+                                      + string( nos ) + string( "," )
+                                      + string( "0.9" ) + string( "," )
+                                      + string( alt ) + string( ",M," )
+                                      + string( "*" );
 
-            // ###############################
-            // send gprmc
-            for( int i = 0 ; i < gprmc.size() ; i++ )
-            {
-                uint8_t data[ 1 ];
+                // ###############################
+                // send gprmc
+                for( int i = 0 ; i < gprmc.size() ; i++ )
+                {
+                    uint8_t data[ 1 ];
 
-                data[ 0 ] = static_cast<uint8_t>( gprmc.at( i ) );
+                    data[ 0 ] = static_cast<uint8_t>( gprmc.at( i ) );
 
-                com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GPS, ComSimuCanMessageType::CAN_GPS_DATA, data, 1 );
+                    com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GPS, ComSimuCanMessageType::CAN_GPS_DATA, data, 1 );
+
+                    usleep( 200 );
+                }
+
+                uint8_t end_data[ 1 ];
+                end_data[ 0 ] = 10;
+
+                com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GPS, ComSimuCanMessageType::CAN_GPS_DATA, end_data, 1 );
 
                 usleep( 200 );
-            }
 
-            uint8_t end_data[ 1 ];
-            end_data[ 0 ] = 10;
+                // ###############################
+                // send gpvtg
+                for( int i = 0 ; i < gpvtg.size() ; i++ )
+                {
+                    uint8_t data[ 1 ];
 
-            com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GPS, ComSimuCanMessageType::CAN_GPS_DATA, end_data, 1 );
+                    data[ 0 ] = static_cast<uint8_t>( gpvtg.at( i ) );
 
-            usleep( 200 );
+                    com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GPS, ComSimuCanMessageType::CAN_GPS_DATA, data, 1 );
 
-            // ###############################
-            // send gpvtg
-            for( int i = 0 ; i < gpvtg.size() ; i++ )
-            {
-                uint8_t data[ 1 ];
+                    usleep( 200 );
+                }
 
-                data[ 0 ] = static_cast<uint8_t>( gpvtg.at( i ) );
-
-                com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GPS, ComSimuCanMessageType::CAN_GPS_DATA, data, 1 );
+                com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GPS, ComSimuCanMessageType::CAN_GPS_DATA, end_data, 1 );
 
                 usleep( 200 );
-            }
-
-            com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GPS, ComSimuCanMessageType::CAN_GPS_DATA, end_data, 1 );
-
-            usleep( 200 );
 
 
-            // ###############################
-            // send gpgga
-            for( int i = 0 ; i < gpgga.size() ; i++ )
-            {
-                uint8_t data[ 1 ];
+                // ###############################
+                // send gpgga
+                for( int i = 0 ; i < gpgga.size() ; i++ )
+                {
+                    uint8_t data[ 1 ];
 
-                data[ 0 ] = static_cast<uint8_t>( gpgga.at( i ) );
+                    data[ 0 ] = static_cast<uint8_t>( gpgga.at( i ) );
 
-                com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GPS, ComSimuCanMessageType::CAN_GPS_DATA, data, 1 );
+                    com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GPS, ComSimuCanMessageType::CAN_GPS_DATA, data, 1 );
+
+                    usleep( 200 );
+                }
+
+                com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GPS, ComSimuCanMessageType::CAN_GPS_DATA, end_data, 1 );
 
                 usleep( 200 );
+
+                // ##################
+                next_tick_time = next_tick_time + tick_duration_ms;
             }
+            else
+            {
+                uint64_t wait_time = next_tick_time - now;
 
-            com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_GPS, ComSimuCanMessageType::CAN_GPS_DATA, end_data, 1 );
-
-            usleep( 200 );
-
-            // ##################
-            next_tick_time = next_tick_time + tick_duration_ms;
+                std::this_thread::sleep_for( std::chrono::milliseconds( wait_time ) );
+            }
         }
-        else
-        {
-            uint64_t wait_time = next_tick_time - now;
-
-            std::this_thread::sleep_for( std::chrono::milliseconds( wait_time ) );
-        }
+    }
+    catch ( std::exception e ) {
+        std::cout<<"Exception gps_manager catch : "<< e.what() << std::endl;
     }
 }
 
