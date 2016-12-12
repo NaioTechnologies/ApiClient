@@ -105,21 +105,26 @@ int main( int argc, char** argv )
 	}
 
 	bool graphical_display_on = true;
+    std::string can = "vcan";
 
 	for( int i = 0 ; i < argc ; i++ )
 	{
-		std::string nogui = argv[ i ];
+		std::string arg = argv[ i ];
 
-		if( nogui == "nogui" )
+		if( arg == "nogui" )
 		{
 			std::cout << "Starting Simulatoz Bridge in no gui mode." << std::endl;
 
 			graphical_display_on = false;
 		}
+        else if(arg == "pcan") {
+
+            can = "pcan";
+        }
 	}
 
 	// start main core thread
-	core->init( graphical_display_on, hostAdress, static_cast<uint16_t>( hostPort ) );
+	core->init( graphical_display_on, hostAdress, static_cast<uint16_t>( hostPort ), can );
 
 	std::cout << "Simulatoz Bridge Started" << std::endl;
 

@@ -179,77 +179,80 @@ Core::~Core( )
 
 // Starts most threads
 
-void Core::init( bool graphical_display_on, std::string hostAdress, uint16_t hostPort )
+void Core::init( bool graphical_display_on, std::string hostAdress, uint16_t hostPort, std::string can )
 {
-    graphical_display_on_ = graphical_display_on;
-    host_adress_ = hostAdress;
-    host_port_ = hostPort;
+    try {
 
-    stop_main_thread_asked_ = false;
-    main_thread_started_ = false;
-    socket_connected_ = false;
+        can_ = can;
+        graphical_display_on_ = graphical_display_on;
+        host_adress_ = hostAdress;
+        host_port_ = hostPort;
 
-    image_server_thread_started_ = false;
-    stop_image_server_thread_asked_ = false;
+        stop_main_thread_asked_ = false;
+        main_thread_started_ = false;
+        socket_connected_ = false;
 
-    server_read_thread_started_ = false;
-    stop_server_write_thread_asked_ = false;
+        image_server_thread_started_ = false;
+        stop_image_server_thread_asked_ = false;
 
-    main_thread_ = std::thread( &Core::main_thread, this );
+        server_read_thread_started_ = false;
+        stop_server_write_thread_asked_ = false;
 
-    std::cout << "Connecting to simu : " << hostAdress << ":" <<  hostPort << std::endl;
+        main_thread_ = std::thread(&Core::main_thread, this);
 
-    struct sockaddr_in server;
+        std::cout << "Connecting to simu : " << hostAdress << ":" << hostPort << std::endl;
 
-    //Create socket
-    socket_desc_ = socket( AF_INET, SOCK_STREAM, 0 );
+        struct sockaddr_in server;
 
-    if ( socket_desc_ == -1 )
-    {
-        std::cout << "Could not create socket" << std::endl;
+        //Create socket
+        socket_desc_ = socket(AF_INET, SOCK_STREAM, 0);
+
+        if (socket_desc_ == -1) {
+            std::cout << "Could not create socket" << std::endl;
+        }
+
+        server.sin_addr.s_addr = inet_addr(hostAdress.c_str());
+        server.sin_family = AF_INET;
+        server.sin_port = htons(hostPort);
+
+        //Connect to remote server
+        if (connect(socket_desc_, (struct sockaddr *) &server, sizeof(server)) < 0) {
+            puts("Simu connect error");
+        } else {
+            puts("Simu Connected\n");
+            socket_connected_ = true;
+        }
+
+        serverReadThread_ = std::thread(&Core::server_read_thread, this);
+
+        server_write_thread_ = std::thread(&Core::server_write_thread, this);
+
+        if (graphical_display_on_) {
+            image_displayer_starter_thread_ = std::thread(&Core::image_displayer_starter_thread_function, this);
+        }
+
+        com_simu_create_virtual_can();
+
+        com_simu_create_serial_thread_ = std::thread(&Core::com_simu_create_serial_thread_function, this);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+
+        com_simu_read_serial_thread_ = std::thread(&Core::com_simu_read_serial_thread_function, this);
+
+        com_simu_lidar_to_core_thread_ = std::thread(&Core::com_simu_lidar_to_core_thread_function, this);
+
+        com_simu_connect_can();
+
+        com_simu_read_can_thread_ = std::thread(&Core::com_simu_read_can_thread_function, this);
+
+        com_simu_remote_thread_ = std::thread(&Core::com_simu_remote_thread_function, this);
+
+        gps_manager_thread_ = std::thread(&Core::gps_manager_thread_function, this);
+
     }
-
-    server.sin_addr.s_addr = inet_addr( hostAdress.c_str() );
-    server.sin_family = AF_INET;
-    server.sin_port = htons( hostPort );
-
-    //Connect to remote server
-    if ( connect( socket_desc_, ( struct sockaddr * ) &server, sizeof( server ) ) < 0 )
-    {
-        puts( "Simu connect error" );
+    catch ( std::exception e ) {
+        std::cout<<"Exception init catch : "<< e.what() << std::endl;
     }
-    else
-    {
-        puts( "Simu Connected\n" );
-        socket_connected_ = true;
-    }
-
-    serverReadThread_ = std::thread( &Core::server_read_thread, this );
-
-    server_write_thread_ = std::thread( &Core::server_write_thread, this );
-
-    if( graphical_display_on_ )
-    {
-        image_displayer_starter_thread_ = std::thread( &Core::image_displayer_starter_thread_function, this );
-    }
-
-    com_simu_create_virtual_can( );
-
-    com_simu_create_serial_thread_ = std::thread( &Core::com_simu_create_serial_thread_function, this );
-
-    std::this_thread::sleep_for( std::chrono::milliseconds( 5000 ) );
-
-    com_simu_read_serial_thread_ = std::thread( &Core::com_simu_read_serial_thread_function, this );
-
-    com_simu_lidar_to_core_thread_ = std::thread( &Core::com_simu_lidar_to_core_thread_function, this );
-
-    com_simu_connect_can( );
-
-    com_simu_read_can_thread_ = std::thread( &Core::com_simu_read_can_thread_function, this );
-
-    com_simu_remote_thread_= std::thread( &Core::com_simu_remote_thread_function, this );
-
-    gps_manager_thread_ = std::thread( &Core::gps_manager_thread_function , this );
 }
 
 // ##################################################################################################
@@ -781,221 +784,254 @@ void Core::graphic_thread( )
 
 void Core::draw_text( char buffer[100], int x, int y )
 {
-    SDL_Surface* surfaceMessageAccel = TTF_RenderText_Solid( ttf_font_, buffer, sdl_color_white_ );
-    SDL_Texture* messageAccel = SDL_CreateTextureFromSurface( renderer_, surfaceMessageAccel );
+    try {
+        SDL_Surface *surfaceMessageAccel = TTF_RenderText_Solid(ttf_font_, buffer, sdl_color_white_);
 
-    SDL_FreeSurface( surfaceMessageAccel );
+        SDL_Texture *messageAccel = SDL_CreateTextureFromSurface(renderer_, surfaceMessageAccel);
 
-    SDL_Rect message_rect_accel;
-    message_rect_accel.x = x;
-    message_rect_accel.y = y;
+        SDL_FreeSurface(surfaceMessageAccel);
 
-    SDL_QueryTexture( messageAccel, NULL, NULL, &message_rect_accel.w, &message_rect_accel.h );
-    SDL_RenderCopy( renderer_, messageAccel, NULL, &message_rect_accel );
+        SDL_Rect message_rect_accel;
+        message_rect_accel.x = x;
+        message_rect_accel.y = y;
 
-    SDL_DestroyTexture( messageAccel );
+        SDL_QueryTexture(messageAccel, NULL, NULL, &message_rect_accel.w, &message_rect_accel.h);
+        SDL_RenderCopy(renderer_, messageAccel, NULL, &message_rect_accel);
+
+        SDL_DestroyTexture(messageAccel);
+    }
+    catch ( std::exception e ) {
+        std::cout<<"Exception draw_text catch : "<< e.what() << std::endl;
+    }
 }
 
 // ##################################################################################################
 //
 void Core::draw_lidar( uint16_t lidar_distance_[ 271 ] )
 {
-    for( int i = 0; i < 271 ; i++ )
-    {
-        double dist = static_cast<double>( lidar_distance_[ i ] ) / 10.0f;
+    try {
+        for (int i = 0; i < 271; i++) {
+            double dist = static_cast<double>( lidar_distance_[i] ) / 10.0f;
 
-        if( dist < 3.0f )
-        {
-            dist = 5000.0f;
-        }
+            if (dist < 3.0f) {
+                dist = 5000.0f;
+            }
 
-        if( i > 45 )
-        {
-            double x_cos = dist * cos(  static_cast<double>( ( i - 45 ) * M_PI / 180. ) );
-            double y_sin = dist * sin(  static_cast<double>( ( i - 45 ) * M_PI / 180. ) );
+            if (i > 45) {
+                double x_cos = dist * cos(static_cast<double>((i - 45) * M_PI / 180. ));
+                double y_sin = dist * sin(static_cast<double>((i - 45) * M_PI / 180. ));
 
-            double x = 400.0 - x_cos;
-            double y = 400.0 - y_sin;
+                double x = 400.0 - x_cos;
+                double y = 400.0 - y_sin;
 
-            SDL_SetRenderDrawColor( renderer_, 255, 255, 255, 255 );
-            SDL_Rect lidar_pixel;
+                SDL_SetRenderDrawColor(renderer_, 255, 255, 255, 255);
+                SDL_Rect lidar_pixel;
 
-            lidar_pixel.w = 1;
-            lidar_pixel.h = 1;
-            lidar_pixel.x = static_cast<int>( x );
-            lidar_pixel.y = static_cast<int>( y );
+                lidar_pixel.w = 1;
+                lidar_pixel.h = 1;
+                lidar_pixel.x = static_cast<int>( x );
+                lidar_pixel.y = static_cast<int>( y );
 
-            SDL_RenderFillRect( renderer_, &lidar_pixel );
+                SDL_RenderFillRect(renderer_, &lidar_pixel);
+            }
         }
     }
+    catch ( std::exception e ) {
+        std::cout<<"Exception draw lidar catch : "<< e.what() << std::endl;
+    }
 }
+
 
 // ##################################################################################################
 
 void Core::draw_red_post( int x, int y )
 {
-    SDL_SetRenderDrawColor(renderer_, 255, 0, 0, 255);
-    SDL_Rect rp;
-    rp.w = 2;
-    rp.h = 2;
-    rp.y = 400 - x - 1;
-    rp.x = 400 - y - 1;
+    try {
+        SDL_SetRenderDrawColor(renderer_, 255, 0, 0, 255);
 
-    SDL_RenderFillRect( renderer_, &rp );
+        SDL_Rect rp;
+        rp.w = 2;
+        rp.h = 2;
+        rp.y = 400 - x - 1;
+        rp.x = 400 - y - 1;
+
+        SDL_RenderFillRect(renderer_, &rp);
+    }
+    catch ( std::exception e ) {
+        std::cout<<"Exception draw red post catch : "<< e.what() << std::endl;
+    }
 }
 
 // ##################################################################################################
 
 void Core::draw_robot()
 {
-    SDL_SetRenderDrawColor( renderer_, 200, 200, 200, 255 );
-    SDL_Rect main;
-    main.w = 42;
-    main.h = 80;
-    main.y = 480 - main.h;
-    main.x = 400 - ( main.w / 2);
+    try {
+        SDL_SetRenderDrawColor(renderer_, 200, 200, 200, 255);
 
-    SDL_RenderFillRect( renderer_, &main );
+        SDL_Rect main;
+        main.w = 42;
+        main.h = 80;
+        main.y = 480 - main.h;
+        main.x = 400 - (main.w / 2);
 
-    SDL_SetRenderDrawColor( renderer_, 100, 100, 100, 255 );
-    SDL_Rect flw;
-    flw.w = 8;
-    flw.h = 20;
-    flw.y = 480 - 75;
-    flw.x = 400 - 21;
+        SDL_RenderFillRect(renderer_, &main);
 
-    SDL_RenderFillRect( renderer_, &flw );
+        SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255);
+        SDL_Rect flw;
+        flw.w = 8;
+        flw.h = 20;
+        flw.y = 480 - 75;
+        flw.x = 400 - 21;
 
-    SDL_SetRenderDrawColor( renderer_, 100, 100, 100, 255 );
-    SDL_Rect frw;
-    frw.w = 8;
-    frw.h = 20;
-    frw.y = 480 - 75;
-    frw.x = 400 + 21 - 8;
+        SDL_RenderFillRect(renderer_, &flw);
 
-    SDL_RenderFillRect( renderer_, &frw );
+        SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255);
+        SDL_Rect frw;
+        frw.w = 8;
+        frw.h = 20;
+        frw.y = 480 - 75;
+        frw.x = 400 + 21 - 8;
 
-    SDL_SetRenderDrawColor( renderer_, 100, 100, 100, 255 );
-    SDL_Rect rlw;
-    rlw.w = 8;
-    rlw.h = 20;
-    rlw.y = 480 - 5 - 20;
-    rlw.x = 400 - 21;
+        SDL_RenderFillRect(renderer_, &frw);
 
-    SDL_RenderFillRect( renderer_, &rlw );
+        SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255);
+        SDL_Rect rlw;
+        rlw.w = 8;
+        rlw.h = 20;
+        rlw.y = 480 - 5 - 20;
+        rlw.x = 400 - 21;
 
-    SDL_SetRenderDrawColor( renderer_, 100, 100, 100, 255 );
-    SDL_Rect rrw;
-    rrw.w = 8;
-    rrw.h = 20;
-    rrw.y = 480 - 5 -20;
-    rrw.x = 400 + 21 - 8;
+        SDL_RenderFillRect(renderer_, &rlw);
 
-    SDL_RenderFillRect( renderer_, &rrw );
+        SDL_SetRenderDrawColor(renderer_, 100, 100, 100, 255);
+        SDL_Rect rrw;
+        rrw.w = 8;
+        rrw.h = 20;
+        rrw.y = 480 - 5 - 20;
+        rrw.x = 400 + 21 - 8;
 
-    SDL_SetRenderDrawColor( renderer_, 120, 120, 120, 255 );
-    SDL_Rect lidar;
-    lidar.w = 8;
-    lidar.h = 8;
-    lidar.y = 480 - 80 - 8;
-    lidar.x = 400 - 4;
+        SDL_RenderFillRect(renderer_, &rrw);
 
-    SDL_RenderFillRect( renderer_, &lidar );
+        SDL_SetRenderDrawColor(renderer_, 120, 120, 120, 255);
+        SDL_Rect lidar;
+        lidar.w = 8;
+        lidar.h = 8;
+        lidar.y = 480 - 80 - 8;
+        lidar.x = 400 - 4;
+
+        SDL_RenderFillRect(renderer_, &lidar);
+    }
+    catch ( std::exception e ) {
+        std::cout<<"Exception draw robot catch : "<< e.what() << std::endl;
+    }
 }
 
 // ##################################################################################################
 
 void Core::draw_images( )
 {
-    SDL_Surface* left_image;
+    try {
+        SDL_Surface *left_image;
 
-    SDL_Surface* right_image;
+
+        SDL_Surface *right_image;
 
 #if SDL_BYTEORDER == SDL_BIG_ENDIAN
-    Uint32 rmask = 0xff000000;
-		Uint32 gmask = 0x00ff0000;
-		Uint32 bmask = 0x0000ff00;
-		Uint32 amask = 0x000000ff;
+        Uint32 rmask = 0xff000000;
+            Uint32 gmask = 0x00ff0000;
+            Uint32 bmask = 0x0000ff00;
+            Uint32 amask = 0x000000ff;
 #else
-    Uint32 rmask = 0x000000ff;
-    Uint32 gmask = 0x0000ff00;
-    Uint32 bmask = 0x00ff0000;
-    Uint32 amask = 0xff000000;
+        Uint32 rmask = 0x000000ff;
+        Uint32 gmask = 0x0000ff00;
+        Uint32 bmask = 0x00ff0000;
+        Uint32 amask = 0xff000000;
 #endif
 
-    last_images_buffer_access_.lock();
+        last_images_buffer_access_.lock();
 
-    uint8_t last_images_buffer_to_display[ 752 * 480 * 3 * 2 ];
+        uint8_t last_images_buffer_to_display[752 * 480 * 3 * 2];
 
-    std::memcpy( &(last_images_buffer_to_display[ 0 ]), &(last_images_buffer_[ 0 ]),  752 * 480 * 3 * 2 );
+        std::memcpy(&(last_images_buffer_to_display[0]), &(last_images_buffer_[0]), 752 * 480 * 3 * 2);
 
-    last_images_buffer_access_.unlock();
+        last_images_buffer_access_.unlock();
 
-    if( last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES or last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB )
-    {
-        left_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_to_display, 752, 480, 3 * 8, 752 * 3, rmask, gmask, bmask, amask );
-        right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_to_display + ( 752 * 480 * 3 ), 752, 480, 3 * 8, 752 * 3, rmask, gmask, bmask, amask );
+        if (last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES or
+            last_image_type_ == ApiStereoCameraPacket::ImageType::RAW_IMAGES_ZLIB) {
+            left_image = SDL_CreateRGBSurfaceFrom(last_images_buffer_to_display, 752, 480, 3 * 8, 752 * 3, rmask, gmask,
+                                                  bmask, amask);
+            right_image = SDL_CreateRGBSurfaceFrom(last_images_buffer_to_display + (752 * 480 * 3), 752, 480, 3 * 8,
+                                                   752 * 3, rmask, gmask, bmask, amask);
+        } else {
+            left_image = SDL_CreateRGBSurfaceFrom(last_images_buffer_to_display, 376, 240, 3 * 8, 376 * 3, rmask, gmask,
+                                                  bmask, amask);
+            right_image = SDL_CreateRGBSurfaceFrom(last_images_buffer_to_display + (376 * 240 * 3), 376, 240, 3 * 8,
+                                                   376 * 3, rmask, gmask, bmask, amask);
+        }
+
+        SDL_Rect left_rect = {400 - 376 - 10, 485, 376, 240};
+
+        SDL_Rect right_rect = {400 + 10, 485, 376, 240};
+
+        SDL_Texture *left_texture = SDL_CreateTextureFromSurface(renderer_, left_image);
+
+        SDL_Texture *right_texture = SDL_CreateTextureFromSurface(renderer_, right_image);
+
+        SDL_RenderCopy(renderer_, left_texture, NULL, &left_rect);
+
+        SDL_RenderCopy(renderer_, right_texture, NULL, &right_rect);
     }
-    else
-    {
-        left_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_to_display, 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
-        right_image = SDL_CreateRGBSurfaceFrom( last_images_buffer_to_display + ( 376 * 240 * 3 ), 376, 240, 3 * 8, 376 * 3, rmask, gmask, bmask, amask );
+    catch ( std::exception e ) {
+        std::cout<<"Exception draw images catch : "<< e.what() << std::endl;
     }
-
-    SDL_Rect left_rect = { 400 - 376 - 10, 485, 376, 240 };
-
-    SDL_Rect right_rect = { 400 + 10, 485, 376, 240 };
-
-    SDL_Texture * left_texture = SDL_CreateTextureFromSurface( renderer_, left_image );
-
-    SDL_Texture * right_texture = SDL_CreateTextureFromSurface( renderer_, right_image );
-
-    SDL_RenderCopy( renderer_, left_texture, NULL, &left_rect );
-
-    SDL_RenderCopy( renderer_, right_texture, NULL, &right_rect );
-
 }
 
 // ##################################################################################################
 
 SDL_Window* Core::init_sdl(const char *name, int szX, int szY)
 {
-    std::cout << "Init SDL";
+    try {
+        std::cout << "Init SDL";
 
-    SDL_Window *screen;
-    std::cout << ".";
 
-    SDL_Init( SDL_INIT_EVERYTHING );
-    std::cout << ".";
+        SDL_Window *screen;
+        std::cout << ".";
 
-    screen = SDL_CreateWindow( name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, szX, szY, SDL_WINDOW_SHOWN );
-    std::cout << ".";
+        SDL_Init(SDL_INIT_EVERYTHING);
+        std::cout << ".";
 
-    renderer_ =  SDL_CreateRenderer( screen, 0, SDL_RENDERER_ACCELERATED );
-    std::cout << ".";
+        screen = SDL_CreateWindow(name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, szX, szY, SDL_WINDOW_SHOWN);
+        std::cout << ".";
 
-    TTF_Init();
-    std::cout << ".";
+        renderer_ = SDL_CreateRenderer(screen, 0, SDL_RENDERER_ACCELERATED);
+        std::cout << ".";
 
-    // Set render color to black ( background will be rendered in this color )
-    SDL_SetRenderDrawColor( renderer_, 0, 0, 0, 255 );
-    std::cout << ".";
+        TTF_Init();
+        std::cout << ".";
 
-    SDL_RenderClear( renderer_ );
-    std::cout << ".";
+        // Set render color to black ( background will be rendered in this color )
+        SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 255);
+        std::cout << ".";
 
-    sdl_color_red_ = { 255, 0, 0, 0 };
-    sdl_color_white_ = { 255, 255, 255, 0 };
-    ttf_font_ = TTF_OpenFont("mono.ttf", 12);
+        SDL_RenderClear(renderer_);
+        std::cout << ".";
 
-    if (ttf_font_ == nullptr)
-    {
-        std::cerr << "Failed to load SDL Font! Error: " << TTF_GetError() << '\n';
+        sdl_color_red_ = {255, 0, 0, 0};
+        sdl_color_white_ = {255, 255, 255, 0};
+        ttf_font_ = TTF_OpenFont("mono.ttf", 12);
+
+        if (ttf_font_ == nullptr) {
+            std::cerr << "Failed to load SDL Font! Error: " << TTF_GetError() << '\n';
+        }
+
+        std::cout << "DONE" << std::endl;
+
+        return screen;
     }
-
-    std::cout << "DONE" << std::endl;
-
-    return screen;
+    catch ( std::exception e ) {
+        std::cout<<"Exception init_sdl catch : "<< e.what() << std::endl;
+    }
 }
 
 // ##################################################################################################
@@ -1003,21 +1039,25 @@ SDL_Window* Core::init_sdl(const char *name, int szX, int szY)
 void
 Core::read_sdl_keyboard()
 {
-    SDL_Event event;
+    try {
 
-    while ( SDL_PollEvent( &event ) )
-    {
-        switch( event.type )
-        {
-            // Cas d'une touche enfoncée
-            case SDL_KEYDOWN:
-                sdl_key_[ event.key.keysym.scancode ] = 1;
-                break;
-                // Cas d'une touche relâchée
-            case SDL_KEYUP:
-                sdl_key_[ event.key.keysym.scancode ] = 0;
-                break;
+        SDL_Event event;
+
+        while (SDL_PollEvent(&event)) {
+            switch (event.type) {
+                // Cas d'une touche enfoncée
+                case SDL_KEYDOWN:
+                    sdl_key_[event.key.keysym.scancode] = 1;
+                    break;
+                    // Cas d'une touche relâchée
+                case SDL_KEYUP:
+                    sdl_key_[event.key.keysym.scancode] = 0;
+                    break;
+            }
         }
+    }
+    catch ( std::exception e ) {
+        std::cout<<"Exception main_thread catch : "<< e.what() << std::endl;
     }
 }
 
@@ -1026,291 +1066,250 @@ Core::read_sdl_keyboard()
 bool
 Core::manage_sdl_keyboard()
 {
-    bool keyPressed = false;
+    try {
+        bool keyPressed = false;
 
-    int8_t left = 0;
-    int8_t right = 0;
+        int8_t left = 0;
+        int8_t right = 0;
 
-    if( sdl_key_[ SDL_SCANCODE_ESCAPE ] == 1)
-    {
-        stop_main_thread_asked_ = true;
+        if (sdl_key_[SDL_SCANCODE_ESCAPE] == 1) {
+            stop_main_thread_asked_ = true;
 
-        return true;
+            return true;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_O] == 1) {
+            asked_start_video_ = true;
+
+            keyPressed = true;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_F] == 1) {
+            asked_stop_video_ = true;
+
+            keyPressed = true;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_UP] == 1 and sdl_key_[SDL_SCANCODE_LEFT] == 1) {
+            com_simu_remote_status_.analog_x = 250;
+            com_simu_remote_status_.analog_y = 5;
+
+            left = 32;
+            right = 63;
+            keyPressed = true;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_UP] == 1 and sdl_key_[SDL_SCANCODE_RIGHT] == 1) {
+            com_simu_remote_status_.analog_x = 250;
+            com_simu_remote_status_.analog_y = 250;
+
+            left = 63;
+            right = 32;
+            keyPressed = true;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_DOWN] == 1 and sdl_key_[SDL_SCANCODE_LEFT] == 1) {
+            com_simu_remote_status_.analog_x = 5;
+            com_simu_remote_status_.analog_y = 5;
+
+            left = -32;
+            right = -63;
+            keyPressed = true;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_DOWN] == 1 and sdl_key_[SDL_SCANCODE_RIGHT] == 1) {
+            com_simu_remote_status_.analog_x = 5;
+            com_simu_remote_status_.analog_y = 250;
+
+            left = -63;
+            right = -32;
+            keyPressed = true;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_UP] == 1) {
+            com_simu_remote_status_.analog_x = 250;
+
+            left = 63;
+            right = 63;
+            keyPressed = true;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_DOWN] == 1) {
+            com_simu_remote_status_.analog_x = 5;
+
+            left = -63;
+            right = -63;
+            keyPressed = true;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_KP_PLUS] == 1) {
+            com_simu_remote_status_.tool_up = true;
+            keyPressed = true;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_KP_MINUS] == 1) {
+            com_simu_remote_status_.tool_down = true;
+
+            keyPressed = true;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_LEFT] == 1) {
+            com_simu_remote_status_.analog_y = 5;
+
+            left = -63;
+            right = 63;
+            keyPressed = true;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_RIGHT] == 1) {
+            com_simu_remote_status_.analog_y = 250;
+
+            left = 63;
+            right = -63;
+            keyPressed = true;
+        }
+
+        // ########################
+        //         COM_SIMU
+        // ########################
+
+        if (sdl_key_[SDL_SCANCODE_KP_7] == 1) {
+            com_simu_remote_status_.secu_left = true;
+
+            keyPressed = true;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_KP_9] == 1) {
+            com_simu_remote_status_.secu_right = true;
+
+            keyPressed = true;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_KP_1] == 1) {
+            com_simu_remote_status_.arr_left = true;
+
+            keyPressed = true;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_KP_3] == 1) {
+            com_simu_remote_status_.arr_right = true;
+
+            keyPressed = true;
+        }
+
+
+        if (sdl_key_[SDL_SCANCODE_KP_4] == 1) {
+            com_simu_remote_status_.pad_left = true;
+
+            keyPressed = true;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_KP_6] == 1) {
+            com_simu_remote_status_.pad_right = true;
+
+            keyPressed = true;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_KP_8] == 1) {
+            com_simu_remote_status_.pad_up = true;
+
+            keyPressed = true;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_KP_2] == 1) {
+            com_simu_remote_status_.pad_down = true;
+
+            keyPressed = true;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_PAGEUP] == 1) {
+            com_simu_ihm_button_status_.plus = true;
+
+            keyPressed = true;
+        } else {
+            com_simu_ihm_button_status_.plus = false;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_PAGEDOWN] == 1) {
+            com_simu_ihm_button_status_.minus = true;
+
+            keyPressed = true;
+        } else {
+            com_simu_ihm_button_status_.minus = false;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_HOME] == 1) {
+            com_simu_ihm_button_status_.left = true;
+
+            keyPressed = true;
+        } else {
+            com_simu_ihm_button_status_.left = false;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_END] == 1) {
+            com_simu_ihm_button_status_.right = true;
+
+            keyPressed = true;
+        } else {
+            com_simu_ihm_button_status_.right = false;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_INSERT] == 1) {
+            com_simu_ihm_button_status_.validate = true;
+
+            keyPressed = true;
+        } else {
+            com_simu_ihm_button_status_.validate = false;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_DELETE] == 1) {
+            com_simu_ihm_button_status_.cancel = true;
+
+            keyPressed = true;
+        } else {
+            com_simu_ihm_button_status_.cancel = false;
+        }
+
+        // #######################
+
+        if (sdl_key_[SDL_SCANCODE_LEFT] == 0 and sdl_key_[SDL_SCANCODE_RIGHT] == 0) {
+            com_simu_remote_status_.analog_y = 128;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_UP] == 0 and sdl_key_[SDL_SCANCODE_DOWN] == 0) {
+            com_simu_remote_status_.analog_x = 128;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_KP_PLUS] == 0) {
+            com_simu_remote_status_.tool_up = false;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_KP_MINUS] == 0) {
+            com_simu_remote_status_.tool_down = false;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_KP_6] == 0) {
+            com_simu_remote_status_.pad_right = false;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_KP_8] == 0) {
+            com_simu_remote_status_.pad_up = false;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_KP_2] == 0) {
+            com_simu_remote_status_.pad_down = false;
+        }
+
+        if (sdl_key_[SDL_SCANCODE_KP_4] == 0) {
+            com_simu_remote_status_.pad_left = false;
+        }
+
+        return keyPressed;
+
     }
-
-    if( sdl_key_[ SDL_SCANCODE_O ] == 1 )
-    {
-        asked_start_video_ = true;
-
-        keyPressed = true;
+    catch ( std::exception e ) {
+        std::cout<<"Exception SDL keyboard catch : "<< e.what() << std::endl;
     }
-
-    if( sdl_key_[ SDL_SCANCODE_F ] == 1 )
-    {
-        asked_stop_video_ = true;
-
-        keyPressed = true;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_UP ] == 1 and sdl_key_[ SDL_SCANCODE_LEFT ] == 1 )
-    {
-        com_simu_remote_status_.analog_x = 250;
-        com_simu_remote_status_.analog_y = 5;
-
-        left = 32;
-        right = 63;
-        keyPressed = true;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_UP ] == 1 and sdl_key_[ SDL_SCANCODE_RIGHT ] == 1 )
-    {
-        com_simu_remote_status_.analog_x = 250;
-        com_simu_remote_status_.analog_y = 250;
-
-        left = 63;
-        right = 32;
-        keyPressed = true;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_DOWN ] == 1 and sdl_key_[ SDL_SCANCODE_LEFT ] == 1 )
-    {
-        com_simu_remote_status_.analog_x = 5;
-        com_simu_remote_status_.analog_y = 5;
-
-        left = -32;
-        right = -63;
-        keyPressed = true;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_DOWN ] == 1 and sdl_key_[ SDL_SCANCODE_RIGHT ] == 1 )
-    {
-        com_simu_remote_status_.analog_x = 5;
-        com_simu_remote_status_.analog_y = 250;
-
-        left = -63;
-        right = -32;
-        keyPressed = true;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_UP ] == 1 )
-    {
-        com_simu_remote_status_.analog_x = 250;
-
-        left = 63;
-        right = 63;
-        keyPressed = true;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_DOWN ] == 1 )
-    {
-        com_simu_remote_status_.analog_x = 5;
-
-        left = -63;
-        right = -63;
-        keyPressed = true;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_KP_PLUS ] == 1 )
-    {
-        com_simu_remote_status_.tool_up  = true;
-        keyPressed = true;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_KP_MINUS ] == 1 )
-    {
-        com_simu_remote_status_.tool_down  = true;
-
-        keyPressed = true;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_LEFT ] == 1 )
-    {
-        com_simu_remote_status_.analog_y = 5;
-
-        left = -63;
-        right = 63;
-        keyPressed = true;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_RIGHT ] == 1 )
-    {
-        com_simu_remote_status_.analog_y = 250;
-
-        left = 63;
-        right = -63;
-        keyPressed = true;
-    }
-
-    // ########################
-    //         COM_SIMU
-    // ########################
-
-    if( sdl_key_[ SDL_SCANCODE_KP_7 ] == 1 )
-    {
-        com_simu_remote_status_.secu_left = true;
-
-        keyPressed = true;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_KP_9 ] == 1 )
-    {
-        com_simu_remote_status_.secu_right = true;
-
-        keyPressed = true;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_KP_1 ] == 1 )
-    {
-        com_simu_remote_status_.arr_left = true;
-
-        keyPressed = true;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_KP_3 ] == 1 )
-    {
-        com_simu_remote_status_.arr_right = true;
-
-        keyPressed = true;
-    }
-
-
-    if( sdl_key_[ SDL_SCANCODE_KP_4 ] == 1 )
-    {
-        com_simu_remote_status_.pad_left = true;
-
-        keyPressed = true;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_KP_6 ] == 1 )
-    {
-        com_simu_remote_status_.pad_right = true;
-
-        keyPressed = true;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_KP_8 ] == 1 )
-    {
-        com_simu_remote_status_.pad_up = true;
-
-        keyPressed = true;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_KP_2 ] == 1 )
-    {
-        com_simu_remote_status_.pad_down = true;
-
-        keyPressed = true;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_PAGEUP ] == 1 )
-    {
-        com_simu_ihm_button_status_.plus = true;
-
-        keyPressed = true;
-    }
-    else
-    {
-        com_simu_ihm_button_status_.plus = false;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_PAGEDOWN] == 1 )
-    {
-        com_simu_ihm_button_status_.minus = true;
-
-        keyPressed = true;
-    }
-    else
-    {
-        com_simu_ihm_button_status_.minus = false;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_HOME] == 1 )
-    {
-        com_simu_ihm_button_status_.left = true;
-
-        keyPressed = true;
-    }
-    else
-    {
-        com_simu_ihm_button_status_.left = false;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_END] == 1 )
-    {
-        com_simu_ihm_button_status_.right = true;
-
-        keyPressed = true;
-    }
-    else
-    {
-        com_simu_ihm_button_status_.right = false;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_INSERT] == 1 )
-    {
-        com_simu_ihm_button_status_.validate = true;
-
-        keyPressed = true;
-    }
-    else
-    {
-        com_simu_ihm_button_status_.validate = false;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_DELETE] == 1 )
-    {
-        com_simu_ihm_button_status_.cancel = true;
-
-        keyPressed = true;
-    }
-    else
-    {
-        com_simu_ihm_button_status_.cancel = false;
-    }
-
-    // #######################
-
-    if( sdl_key_[ SDL_SCANCODE_LEFT ] == 0 and sdl_key_[ SDL_SCANCODE_RIGHT ] == 0 )
-    {
-        com_simu_remote_status_.analog_y = 128;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_UP ] == 0 and sdl_key_[ SDL_SCANCODE_DOWN ] == 0 )
-    {
-        com_simu_remote_status_.analog_x = 128;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_KP_PLUS ] == 0 )
-    {
-        com_simu_remote_status_.tool_up = false;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_KP_MINUS ] == 0 )
-    {
-        com_simu_remote_status_.tool_down = false;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_KP_6 ] == 0 )
-    {
-        com_simu_remote_status_.pad_right = false;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_KP_8 ] == 0 )
-    {
-        com_simu_remote_status_.pad_up = false;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_KP_2 ] == 0 )
-    {
-        com_simu_remote_status_.pad_down = false;
-    }
-
-    if( sdl_key_[ SDL_SCANCODE_KP_4 ] == 0 )
-    {
-        com_simu_remote_status_.pad_left = false;
-    }
-
-    return keyPressed;
 }
 
 // ##################################################################################################
@@ -1320,87 +1319,80 @@ Core::manage_sdl_keyboard()
 void Core::manage_received_packet(BaseNaio01PacketPtr packetPtr)
 {
 
-    if( std::dynamic_pointer_cast<HaLidarPacket>( packetPtr )  )
-    {
-        HaLidarPacketPtr haLidarPacketPtr = std::dynamic_pointer_cast<HaLidarPacket>( packetPtr );
+    try {
 
-        ha_lidar_packet_ptr_access_.lock();
-        ha_lidar_packet_ptr_ = haLidarPacketPtr;
-        ha_lidar_packet_ptr_access_.unlock();
+        if (std::dynamic_pointer_cast<HaLidarPacket>(packetPtr)) {
+            HaLidarPacketPtr haLidarPacketPtr = std::dynamic_pointer_cast<HaLidarPacket>(packetPtr);
+
+            ha_lidar_packet_ptr_access_.lock();
+            ha_lidar_packet_ptr_ = haLidarPacketPtr;
+            ha_lidar_packet_ptr_access_.unlock();
+        } else if (std::dynamic_pointer_cast<HaGyroPacket>(packetPtr)) {
+            HaGyroPacketPtr haGyroPacketPtr = std::dynamic_pointer_cast<HaGyroPacket>(packetPtr);
+
+            ha_gyro_packet_ptr_access_.lock();
+            ha_gyro_packet_ptr_ = haGyroPacketPtr;
+            ha_gyro_packet_ptr_access_.unlock();
+
+            com_simu_transform_and_write_to_can(packetPtr);
+        } else if (std::dynamic_pointer_cast<HaAcceleroPacket>(packetPtr)) {
+            HaAcceleroPacketPtr haAcceleroPacketPtr = std::dynamic_pointer_cast<HaAcceleroPacket>(packetPtr);
+
+            ha_accel_packet_ptr_access_.lock();
+            ha_accel_packet_ptr_ = haAcceleroPacketPtr;
+            ha_accel_packet_ptr_access_.unlock();
+
+            com_simu_transform_and_write_to_can(packetPtr);
+        } else if (std::dynamic_pointer_cast<HaOdoPacket>(packetPtr)) {
+            HaOdoPacketPtr haOdoPacketPtr = std::dynamic_pointer_cast<HaOdoPacket>(packetPtr);
+
+            ha_odo_packet_ptr_access.lock();
+            ha_odo_packet_ptr_ = haOdoPacketPtr;
+            ha_odo_packet_ptr_access.unlock();
+
+            com_simu_transform_and_write_to_can(packetPtr);
+        } else if (std::dynamic_pointer_cast<ApiPostPacket>(packetPtr)) {
+            ApiPostPacketPtr apiPostPacketPtr = std::dynamic_pointer_cast<ApiPostPacket>(packetPtr);
+
+            api_post_packet_ptr_access_.lock();
+            api_post_packet_ptr_ = apiPostPacketPtr;
+            api_post_packet_ptr_access_.unlock();
+        } else if (std::dynamic_pointer_cast<HaGpsPacket>(packetPtr)) {
+            HaGpsPacketPtr haGpsPacketPtr = std::dynamic_pointer_cast<HaGpsPacket>(packetPtr);
+
+            ha_gps_packet_ptr_access_.lock();
+            previous_ha_gps_packet_ptr_ = ha_gps_packet_ptr_;
+            ha_gps_packet_ptr_ = haGpsPacketPtr;
+            ha_gps_packet_ptr_access_.unlock();
+        } else if (std::dynamic_pointer_cast<ApiStereoCameraPacket>(packetPtr)) {
+            ApiStereoCameraPacketPtr api_stereo_camera_packet_ptr = std::dynamic_pointer_cast<ApiStereoCameraPacket>(
+                    packetPtr);
+
+            milliseconds now_ms = duration_cast<milliseconds>(system_clock::now().time_since_epoch());
+            last_image_received_time_ = static_cast<int64_t>( now_ms.count());
+
+            api_stereo_camera_packet_ptr_access_.lock();
+            api_stereo_camera_packet_ptr_ = api_stereo_camera_packet_ptr;
+            api_stereo_camera_packet_ptr_access_.unlock();
+        } else if (std::dynamic_pointer_cast<ApiMoveActuatorPacket>(packetPtr)) {
+            ApiMoveActuatorPacketPtr api_move_actuator_packet_ptr = std::dynamic_pointer_cast<ApiMoveActuatorPacket>(
+                    packetPtr);
+
+            tool_position_access_.lock();
+            tool_position_ = api_move_actuator_packet_ptr->position;
+            tool_position_access_.unlock();
+
+            uint8_t data[1];
+
+            tool_position_access_.lock();
+            data[0] = tool_position_;
+            tool_position_access_.unlock();
+
+            com_simu_send_can_packet(ComSimuCanMessageId::CAN_ID_VER, ComSimuCanMessageType::CAN_VER_POS, data, 1);
+        }
     }
-    else if( std::dynamic_pointer_cast<HaGyroPacket>( packetPtr )  )
-    {
-        HaGyroPacketPtr haGyroPacketPtr = std::dynamic_pointer_cast<HaGyroPacket>( packetPtr );
-
-        ha_gyro_packet_ptr_access_.lock();
-        ha_gyro_packet_ptr_ = haGyroPacketPtr;
-        ha_gyro_packet_ptr_access_.unlock();
-
-        com_simu_transform_and_write_to_can( packetPtr );
-    }
-    else if( std::dynamic_pointer_cast<HaAcceleroPacket>( packetPtr )  )
-    {
-        HaAcceleroPacketPtr haAcceleroPacketPtr = std::dynamic_pointer_cast<HaAcceleroPacket>( packetPtr );
-
-        ha_accel_packet_ptr_access_.lock();
-        ha_accel_packet_ptr_ = haAcceleroPacketPtr;
-        ha_accel_packet_ptr_access_.unlock();
-
-        com_simu_transform_and_write_to_can( packetPtr );
-    }
-    else if( std::dynamic_pointer_cast<HaOdoPacket>( packetPtr )  )
-    {
-        HaOdoPacketPtr haOdoPacketPtr = std::dynamic_pointer_cast<HaOdoPacket>( packetPtr );
-
-        ha_odo_packet_ptr_access.lock();
-        ha_odo_packet_ptr_ = haOdoPacketPtr;
-        ha_odo_packet_ptr_access.unlock();
-
-        com_simu_transform_and_write_to_can( packetPtr );
-    }
-    else if( std::dynamic_pointer_cast<ApiPostPacket>( packetPtr )  )
-    {
-        ApiPostPacketPtr apiPostPacketPtr = std::dynamic_pointer_cast<ApiPostPacket>( packetPtr );
-
-        api_post_packet_ptr_access_.lock();
-        api_post_packet_ptr_ = apiPostPacketPtr;
-        api_post_packet_ptr_access_.unlock();
-    }
-    else if( std::dynamic_pointer_cast<HaGpsPacket>( packetPtr )  )
-    {
-        HaGpsPacketPtr haGpsPacketPtr = std::dynamic_pointer_cast<HaGpsPacket>( packetPtr );
-
-        ha_gps_packet_ptr_access_.lock();
-        previous_ha_gps_packet_ptr_ = ha_gps_packet_ptr_;
-        ha_gps_packet_ptr_ = haGpsPacketPtr;
-        ha_gps_packet_ptr_access_.unlock();
-    }
-    else if( std::dynamic_pointer_cast<ApiStereoCameraPacket>( packetPtr )  )
-    {
-        ApiStereoCameraPacketPtr api_stereo_camera_packet_ptr = std::dynamic_pointer_cast<ApiStereoCameraPacket>( packetPtr );
-
-        milliseconds now_ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
-        last_image_received_time_ = static_cast<int64_t>( now_ms.count() );
-
-        api_stereo_camera_packet_ptr_access_.lock();
-        api_stereo_camera_packet_ptr_ = api_stereo_camera_packet_ptr;
-        api_stereo_camera_packet_ptr_access_.unlock();
-    }
-    else if( std::dynamic_pointer_cast<ApiMoveActuatorPacket>( packetPtr )  )
-    {
-        ApiMoveActuatorPacketPtr api_move_actuator_packet_ptr = std::dynamic_pointer_cast<ApiMoveActuatorPacket>( packetPtr );
-
-        tool_position_access_.lock();
-        tool_position_ = api_move_actuator_packet_ptr->position;
-        tool_position_access_.unlock();
-
-        uint8_t data[1];
-
-        tool_position_access_.lock();
-        data[ 0 ] = tool_position_;
-        tool_position_access_.unlock();
-
-        com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_VER, ComSimuCanMessageType::CAN_VER_POS, data, 1 );
+    catch ( std::exception e ) {
+        std::cout<<"Exception main_thread catch : "<< e.what() << std::endl;
     }
 }
 
@@ -1410,65 +1402,66 @@ void Core::manage_received_packet(BaseNaio01PacketPtr packetPtr)
 
 void Core::image_server_thread( )
 {
-    std::cout << "Staring image_server_thread." << std::endl;
+    try {
 
-    image_server_read_thread_started_ = false;
-    image_server_write_thread_started_ = false;
+        std::cout << "Staring image_server_thread." << std::endl;
 
-    stop_image_server_read_thread_asked_ = false;
-    stop_image_server_write_thread_asked_ = false;
+        image_server_read_thread_started_ = false;
+        image_server_write_thread_started_ = false;
 
-    stop_image_server_thread_asked_ = false;
-    image_server_thread_started_ = true;
+        stop_image_server_read_thread_asked_ = false;
+        stop_image_server_write_thread_asked_ = false;
 
-    struct sockaddr_in imageServer;
+        stop_image_server_thread_asked_ = false;
+        image_server_thread_started_ = true;
 
-    //Create socket
-    image_socket_desc_ = socket( AF_INET, SOCK_STREAM, 0 );
+        struct sockaddr_in imageServer;
 
-    if ( image_socket_desc_ == -1 )
-    {
-        std::cout << "Could not create image socket" << std::endl;
+        //Create socket
+        image_socket_desc_ = socket(AF_INET, SOCK_STREAM, 0);
+
+        if (image_socket_desc_ == -1) {
+            std::cout << "Could not create image socket" << std::endl;
+        }
+
+        imageServer.sin_addr.s_addr = inet_addr(host_adress_.c_str());
+        imageServer.sin_family = AF_INET;
+        imageServer.sin_port = htons(static_cast<uint16_t>( SIMULATOR_IMAGE_PORT ));
+
+        //Connect to remote server
+        if (connect(image_socket_desc_, (struct sockaddr *) &imageServer, sizeof(imageServer)) < 0) {
+            puts("image connect error 5557");
+        } else {
+            puts("Connected image\n");
+            image_socket_connected_ = true;
+        }
+
+        image_prepared_thread_ = std::thread(&Core::image_preparer_thread, this);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int64_t>( 50 )));
+
+        image_server_read_thread_ = std::thread(&Core::image_server_read_thread, this);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int64_t>( 50 )));
+
+        image_server_write_thread_ = std::thread(&Core::image_server_write_thread, this);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int64_t>( 50 )));
+
+        while (not stop_image_server_thread_asked_) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int64_t>( 1000 )));
+        }
+
+        image_server_thread_started_ = false;
+        stop_image_server_thread_asked_ = false;
+
+        std::cout << ".";
+
+        std::cout << "Exiting image_server_thread" << std::endl;
     }
-
-    imageServer.sin_addr.s_addr = inet_addr( host_adress_.c_str() );
-    imageServer.sin_family = AF_INET;
-    imageServer.sin_port = htons( static_cast<uint16_t>( SIMULATOR_IMAGE_PORT ) );
-
-    //Connect to remote server
-    if ( connect( image_socket_desc_, ( struct sockaddr * ) &imageServer, sizeof( imageServer ) ) < 0 )
-    {
-        puts( "image connect error 5557" );
+    catch ( std::exception e ) {
+        std::cout<<"Exception image_thread catch : "<< e.what() << std::endl;
     }
-    else
-    {
-        puts( "Connected image\n" );
-        image_socket_connected_ = true;
-    }
-
-    image_prepared_thread_ = std::thread( &Core::image_preparer_thread, this );
-
-    std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
-
-    image_server_read_thread_ = std::thread( &Core::image_server_read_thread, this );
-
-    std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
-
-    image_server_write_thread_ = std::thread( &Core::image_server_write_thread, this );
-
-    std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
-
-    while( not stop_image_server_thread_asked_ )
-    {
-        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 1000 ) ) );
-    }
-
-    image_server_thread_started_ = false;
-    stop_image_server_thread_asked_ = false;
-
-    std::cout << ".";
-
-    std::cout << "Exiting image_server_thread" << std::endl;
 }
 
 // ##################################################################################################
@@ -1477,46 +1470,50 @@ void Core::image_server_thread( )
 
 void Core::image_server_read_thread( )
 {
-    std::cout << "Starting image_server_read_thread." << std::endl;
+    try {
+        std::cout << "Starting image_server_read_thread." << std::endl;
 
-    image_server_read_thread_started_ = true;
-    stop_image_server_read_thread_asked_ = false;
 
-    uint8_t receiveBuffer[ 4000000 ];
+        image_server_read_thread_started_ = true;
+        stop_image_server_read_thread_asked_ = false;
 
-    while( not stop_image_server_read_thread_asked_ )
-    {
-        image_socket_desc_access_.lock();
+        uint8_t receiveBuffer[4000000];
 
-        // any time : read incoming messages.
-        int readSize = (int)recv( image_socket_desc_, receiveBuffer, 16384, MSG_DONTWAIT );
+        while (not stop_image_server_read_thread_asked_) {
+            image_socket_desc_access_.lock();
 
-        image_socket_desc_access_.unlock();
+            // any time : read incoming messages.
+            int readSize = (int) recv(image_socket_desc_, receiveBuffer, 16384, MSG_DONTWAIT);
 
-        if ( readSize > 0 )
-        {
-            bool packetHeaderDetected = false;
+            image_socket_desc_access_.unlock();
 
-            bool atLeastOnePacketReceived = image_naio_codec_.decode( receiveBuffer, static_cast<uint>( readSize ), packetHeaderDetected );
+            if (readSize > 0) {
+                bool packetHeaderDetected = false;
 
-            // manage received messages
-            if (atLeastOnePacketReceived)
-            {
-                for ( auto &&packetPtr : image_naio_codec_.currentBasePacketList )
-                {
-                    manage_received_packet(packetPtr);
+                bool atLeastOnePacketReceived = image_naio_codec_.decode(receiveBuffer, static_cast<uint>( readSize ),
+                                                                         packetHeaderDetected);
+
+                // manage received messages
+                if (atLeastOnePacketReceived) {
+                    for (auto &&packetPtr : image_naio_codec_.currentBasePacketList) {
+                        manage_received_packet(packetPtr);
+                    }
+
+                    image_naio_codec_.currentBasePacketList.clear();
                 }
-
-                image_naio_codec_.currentBasePacketList.clear();
             }
+            std::this_thread::sleep_for(
+                    std::chrono::milliseconds(static_cast<int64_t>( WAIT_SERVER_IMAGE_TIME_RATE_MS )));
         }
-        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( WAIT_SERVER_IMAGE_TIME_RATE_MS ) ) );
+
+        image_server_read_thread_started_ = false;
+        stop_image_server_read_thread_asked_ = false;
+
+        std::cout << "Exiting image_server_read_thread" << std::endl;
     }
-
-    image_server_read_thread_started_ = false;
-    stop_image_server_read_thread_asked_= false;
-
-    std::cout << "Exiting image_server_read_thread" << std::endl;
+    catch ( std::exception e ) {
+        std::cout<<"Exception image_server_read_thread catch : "<< e.what() << std::endl;
+    }
 }
 
 // ##################################################################################################
@@ -1525,52 +1522,55 @@ void Core::image_server_read_thread( )
 
 void Core::image_server_write_thread( )
 {
-    std::cout << "Staring image_server_write_thread." << std::endl;
+    try {
+        std::cout << "Staring image_server_write_thread." << std::endl;
 
-    image_server_write_thread_started_ = true;
-    stop_image_server_write_thread_asked_ = false;
 
-    while( not stop_image_server_write_thread_asked_ )
-    {
-        if( image_socket_connected_ )
-        {
-            ApiWatchdogPacketPtr api_watchdog_packet_ptr = std::make_shared<ApiWatchdogPacket>( 42 );
+        image_server_write_thread_started_ = true;
+        stop_image_server_write_thread_asked_ = false;
 
-            cl_copy::BufferUPtr buffer = api_watchdog_packet_ptr->encode();
+        while (not stop_image_server_write_thread_asked_) {
+            if (image_socket_connected_) {
+                ApiWatchdogPacketPtr api_watchdog_packet_ptr = std::make_shared<ApiWatchdogPacket>(42);
 
-            int total_written_bytes = 0;
-            int sentSize = 0;
-            int nb_tries = 0;
-            int max_tries = 50;
+                cl_copy::BufferUPtr buffer = api_watchdog_packet_ptr->encode();
 
-            image_socket_desc_access_.lock();
+                int total_written_bytes = 0;
+                int sentSize = 0;
+                int nb_tries = 0;
+                int max_tries = 50;
 
-            while( total_written_bytes < buffer->size() and nb_tries < max_tries )
-            {
-                sentSize = (int) write( image_socket_desc_, buffer->data() + total_written_bytes, buffer->size() - total_written_bytes );
+                image_socket_desc_access_.lock();
 
-                if( sentSize < 0 )
-                {
-                    nb_tries++;
-                    std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 10 ) ) );
+                while (total_written_bytes < buffer->size() and nb_tries < max_tries) {
+                    sentSize = (int) write(image_socket_desc_, buffer->data() + total_written_bytes,
+                                           buffer->size() - total_written_bytes);
+
+                    if (sentSize < 0) {
+                        nb_tries++;
+                        std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int64_t>( 10 )));
+                    } else {
+                        total_written_bytes = total_written_bytes + sentSize;
+                        nb_tries = 0;
+                    }
                 }
-                else
-                {
-                    total_written_bytes = total_written_bytes + sentSize;
-                    nb_tries = 0;
-                }
+
+                image_socket_desc_access_.unlock();
             }
 
-            image_socket_desc_access_.unlock();
+            std::this_thread::sleep_for(
+                    std::chrono::milliseconds(static_cast<int64_t>( IMAGE_SERVER_WATCHDOG_SENDING_RATE_MS )));
         }
 
-        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( IMAGE_SERVER_WATCHDOG_SENDING_RATE_MS ) ) );
+        image_server_write_thread_started_ = false;
+        stop_image_server_write_thread_asked_ = false;
+
+        std::cout << "Exiting image_server_write_thread" << std::endl;
+
     }
-
-    image_server_write_thread_started_ = false;
-    stop_image_server_write_thread_asked_ = false;
-
-    std::cout << "Exiting image_server_write_thread" << std::endl;
+    catch ( std::exception e ) {
+        std::cout<<"Exception image server write_thread catch : "<< e.what() << std::endl;
+    }
 }
 
 // ##################################################################################################
@@ -1579,101 +1579,101 @@ void Core::image_server_write_thread( )
 
 void Core::image_preparer_thread( )
 {
-    std::cout << "Starting image_preparer_thread." << std::endl;
+    try {
+        std::cout << "Starting image_preparer_thread." << std::endl;
 
-    image_prepared_thread_started_ = true;
-    stop_image_preparer_thread_asked_ = false;
 
-    while ( not stop_image_preparer_thread_asked_ )
-    {
-        api_stereo_camera_packet_ptr_access_.lock();
+        image_prepared_thread_started_ = true;
+        stop_image_preparer_thread_asked_ = false;
 
-        if ( api_stereo_camera_packet_ptr_ == nullptr )
-        {
-            int64_t now = get_now_ms();
+        while (not stop_image_preparer_thread_asked_) {
+            api_stereo_camera_packet_ptr_access_.lock();
 
-            int64_t diff_time = now - last_image_received_time_;
+            if (api_stereo_camera_packet_ptr_ == nullptr) {
+                int64_t now = get_now_ms();
 
-            if ( diff_time > TIME_BEFORE_IMAGE_LOST_MS )
-            {
-                last_image_received_time_ = now;
+                int64_t diff_time = now - last_image_received_time_;
 
-                uint8_t fake = 0;
+                if (diff_time > TIME_BEFORE_IMAGE_LOST_MS) {
+                    last_image_received_time_ = now;
+
+                    uint8_t fake = 0;
+
+                    last_images_buffer_access_.lock();
+
+                    for (int i = 0; i < 721920 * 3; i++) {
+                        if (fake >= 255) {
+                            fake = 0;
+                        }
+
+                        last_images_buffer_[i] = fake;
+
+                        fake++;
+                    }
+
+                    last_images_buffer_access_.unlock();
+                }
+            } else {
+                last_image_type_ = api_stereo_camera_packet_ptr_->imageType;
+
+                size_t buffer_size = api_stereo_camera_packet_ptr_->dataBuffer->size();
+
+                cl_copy::BufferUPtr prepared_image_buffer = cl_copy::unique_buffer(buffer_size);
+
+                for (int i = 0; i < buffer_size; i++) {
+                    (*prepared_image_buffer)[i] = api_stereo_camera_packet_ptr_->dataBuffer->at(i);
+                }
 
                 last_images_buffer_access_.lock();
 
-                for ( int i = 0; i < 721920 * 3; i++ )
-                {
-                    if ( fake >= 255 )
-                    {
-                        fake = 0;
-                    }
-
-                    last_images_buffer_[i] = fake;
-
-                    fake++;
+                // don't know how to display 8bits image with sdl...
+                for (uint i = 0; i < prepared_image_buffer->size(); i++) {
+                    last_images_buffer_[(i * 3) + 0] = prepared_image_buffer->at(i);
+                    last_images_buffer_[(i * 3) + 1] = prepared_image_buffer->at(i);
+                    last_images_buffer_[(i * 3) + 2] = prepared_image_buffer->at(i);
                 }
 
                 last_images_buffer_access_.unlock();
-            }
-        }
-        else
-        {
-            last_image_type_ = api_stereo_camera_packet_ptr_->imageType;
 
-            size_t buffer_size = api_stereo_camera_packet_ptr_->dataBuffer->size();
-
-            cl_copy::BufferUPtr prepared_image_buffer = cl_copy::unique_buffer(buffer_size);
-
-            for (int i = 0; i < buffer_size; i++)
-            {
-                (*prepared_image_buffer)[i] = api_stereo_camera_packet_ptr_->dataBuffer->at(i);
+                api_stereo_camera_packet_ptr_ = nullptr;
             }
 
-            last_images_buffer_access_.lock();
+            api_stereo_camera_packet_ptr_access_.unlock();
 
-            // don't know how to display 8bits image with sdl...
-            for (uint i = 0; i < prepared_image_buffer->size(); i++)
-            {
-                last_images_buffer_[(i * 3) + 0] = prepared_image_buffer->at(i);
-                last_images_buffer_[(i * 3) + 1] = prepared_image_buffer->at(i);
-                last_images_buffer_[(i * 3) + 2] = prepared_image_buffer->at(i);
-            }
-
-            last_images_buffer_access_.unlock();
-
-            api_stereo_camera_packet_ptr_ = nullptr;
+            std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int64_t>( 20 )));
         }
 
-        api_stereo_camera_packet_ptr_access_.unlock();
+        stop_image_preparer_thread_asked_ = false;
+        image_prepared_thread_started_ = false;
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int64_t>( 20 )));
+        std::cout << "Exiting image_preparer_thread" << std::endl;
     }
-
-    stop_image_preparer_thread_asked_ = false;
-    image_prepared_thread_started_ = false;
-
-    std::cout << "Exiting image_preparer_thread" << std::endl;
+    catch ( std::exception e ) {
+        std::cout<<"Exception image_preparer_thread catch : "<< e.what() << std::endl;
+    }
 }
 
 // ##################################################################################################
 
 // Starts image_server_thread when asked
 
-void Core::image_displayer_starter_thread_function()
-{
-    while( true )
-    {
-        if( asked_image_displayer_start_ )
-        {
-            std::cout << "Starting image displayer." << std::endl;
+void Core::image_displayer_starter_thread_function() {
+    try {
+        while (true) {
+            if (asked_image_displayer_start_) {
+                std::cout << "Starting image displayer." << std::endl;
 
-            image_server_thread_ = std::thread( &Core::image_server_thread, this );
+                image_server_thread_ = std::thread(&Core::image_server_thread, this);
 
-            asked_image_displayer_start_ = false;
+                asked_image_displayer_start_ = false;
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int64_t>( 100 )));
         }
+    }
 
-        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 100 ) ) );
+    catch ( std::exception e ) {
+        std::cout<<"Exception image_displayer_starter_thread_function catch : "<< e.what() << std::endl;
     }
 }
 
@@ -1683,23 +1683,31 @@ void Core::image_displayer_starter_thread_function()
 
 void Core::start_image_display()
 {
-    simulatoz_image_actionner_access_.lock();
+    try{
 
-    uint64_t now = get_now_ms();
+        simulatoz_image_actionner_access_.lock();
 
-    if( now - last_image_displayer_action_time_ms_ > 1000 )
-    {
-        last_image_displayer_action_time_ms_ = now;
 
-        if(!image_server_thread_started_ or !image_server_read_thread_started_ and !image_server_write_thread_started_ and !image_prepared_thread_started_)
+        uint64_t now = get_now_ms();
+
+        if( now - last_image_displayer_action_time_ms_ > 1000 )
         {
-            asked_image_displayer_start_ = true;
+            last_image_displayer_action_time_ms_ = now;
+
+            if(!image_server_thread_started_ or !image_server_read_thread_started_ and !image_server_write_thread_started_ and !image_prepared_thread_started_)
+            {
+                asked_image_displayer_start_ = true;
+            }
         }
+
+        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 100 ) ) );
+
+        simulatoz_image_actionner_access_.unlock();
     }
 
-    std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 100 ) ) );
-
-    simulatoz_image_actionner_access_.unlock();
+    catch ( std::exception e ) {
+        std::cout<<"Exception start_image_display catch : "<< e.what() << std::endl;
+    }
 }
 
 // ##################################################################################################
@@ -1708,78 +1716,84 @@ void Core::start_image_display()
 
 void Core::stop_image_display()
 {
-    simulatoz_image_actionner_access_.lock();
+    try{
+        simulatoz_image_actionner_access_.lock();
 
-    uint64_t now = get_now_ms();
+        uint64_t now = get_now_ms();
 
-    if( now - last_image_displayer_action_time_ms_ > 1000 )
-    {
-        last_image_displayer_action_time_ms_ = now;
-
-        std::cout << "Stopping image displayer" << std::endl;
-
-        if( image_server_thread_started_ and image_server_read_thread_started_ and image_server_write_thread_started_ and image_prepared_thread_started_ )
+        if( now - last_image_displayer_action_time_ms_ > 1000 )
         {
-            stop_image_server_read_thread_asked_ = true;
-            stop_image_server_write_thread_asked_ = true;
-            stop_image_preparer_thread_asked_ = true;
-            stop_image_server_thread_asked_ = true;
+            last_image_displayer_action_time_ms_ = now;
 
-            int cpt = 0;
+            std::cout << "Stopping image displayer" << std::endl;
 
-            while( ( image_server_thread_started_ or image_server_read_thread_started_ or image_server_write_thread_started_ or image_prepared_thread_started_ ) and cpt < 100  )
+            if( image_server_thread_started_ and image_server_read_thread_started_ and image_server_write_thread_started_ and image_prepared_thread_started_ )
             {
-                std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 1 ) ) );
-                cpt++;
-            }
+                stop_image_server_read_thread_asked_ = true;
+                stop_image_server_write_thread_asked_ = true;
+                stop_image_preparer_thread_asked_ = true;
+                stop_image_server_thread_asked_ = true;
 
-            close( image_socket_desc_ );
+                int cpt = 0;
 
-            uint8_t fake = 0;
-
-            for ( int i = 0 ; i < 4000000 ; i++ )
-            {
-                if( fake >= 255 )
+                while( ( image_server_thread_started_ or image_server_read_thread_started_ or image_server_write_thread_started_ or image_prepared_thread_started_ ) and cpt < 100  )
                 {
-                    fake = 0;
+                    std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 1 ) ) );
+                    cpt++;
                 }
 
-                last_images_buffer_[ i ] = fake;
+                close( image_socket_desc_ );
 
-                fake++;
+                uint8_t fake = 0;
+
+                for ( int i = 0 ; i < 4000000 ; i++ )
+                {
+                    if( fake >= 255 )
+                    {
+                        fake = 0;
+                    }
+
+                    last_images_buffer_[ i ] = fake;
+
+                    fake++;
+                }
+
+                std::cout << "joining threads";
+
+                std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
+
+                image_server_read_thread_.join();
+
+                std::cout << ".";
+
+                std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
+
+                image_prepared_thread_.join();
+
+                std::cout << ".";
+
+                std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
+
+                image_server_write_thread_.join();
+
+                std::cout << ".";
+
+                std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
+
+                image_server_thread_.join();
+
+                std::cout << std::endl;
             }
-
-            std::cout << "joining threads";
-
-            std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
-
-            image_server_read_thread_.join();
-
-            std::cout << ".";
-
-            std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
-
-            image_prepared_thread_.join();
-
-            std::cout << ".";
-
-            std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
-
-            image_server_write_thread_.join();
-
-            std::cout << ".";
-
-            std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
-
-            image_server_thread_.join();
-
-            std::cout << std::endl;
         }
+
+        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
+
+        simulatoz_image_actionner_access_.unlock();
     }
 
-    std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 50 ) ) );
-
-    simulatoz_image_actionner_access_.unlock();
+    catch ( std::exception e ) {
+        std::cout<<"Exception stop_image display catch : "<< e.what() << std::endl;
+    }
 }
 
 // ##################################################################################################
@@ -1788,14 +1802,24 @@ void Core::stop_image_display()
 
 void Core::com_simu_create_virtual_can( )
 {
-//    (void)( system( "modprobe can" ) + 1 );
-//    (void)( system( "modprobe can_raw" ) + 1 );
-//    (void)( system( "modprobe vcan" ) + 1 );
-//    (void)( system( "ip link add dev can0 type vcan" ) + 1 );
-//    (void)( system( "ip link set up can0" ) + 1 );
+    (void)( system( "ifconfig can0 down"));
 
-    //sudo ip link set can0 type can bitrate 125000
-    //sudo modprobe pcan assign=pcan32:can0
+    if (can_ == "vcan")
+    {
+        (void)( system( "modprobe can" ) + 1 );
+        (void)( system( "modprobe can_raw" ) + 1 );
+        (void)( system( "modprobe vcan" ) + 1 );
+        (void)( system( "ip link add dev can0 type vcan" ) + 1 );
+        (void)( system( "ip link set up can0" ) + 1 );
+    }
+    else if(can_ == "pcan")
+    {
+        std::cout<<"pcan"<<std::endl;
+        (void)( system( "modprobe pcan"));
+        (void)( system( "modprobe pcan assign=pcan32:can0"));
+        (void)( system( "ip link set can0 type can bitrate 1000000"));
+        (void)( system( "ifconfig can0 up"));
+    }
 }
 
 // ##################################################################################################
@@ -1847,6 +1871,8 @@ void Core::com_simu_read_serial_thread_function( )
                     {
                         HaMotorsPacketPtr haMotorsPacketPtr = std::make_shared<HaMotorsPacket>( motors[ 2 ], motors[ 1 ] );
 
+                        std::cout<<"MOTOR PACKET" << static_cast<int>( motors[ 2 ] ) << " " << static_cast<int>( motors[ 1 ] )<<std::endl;
+
                         send_packet_list_access_.lock();
                         send_packet_list_.push_back( haMotorsPacketPtr );
                         send_packet_list_access_.unlock();
@@ -1894,72 +1920,78 @@ void Core::com_simu_read_serial_thread_function( )
 
 void Core::com_simu_lidar_to_core_thread_function( )
 {
-    SOCKET sockLidarRobot = openSocketServer( OZCORE_LIDAR_PORT );
+    try{
+        SOCKET sockLidarRobot = openSocketServer( OZCORE_LIDAR_PORT );
 
-    sockLidarRobot = waitConnect( sockLidarRobot );
+        sockLidarRobot = waitConnect( sockLidarRobot );
 
-    printf( "Bridge connected to OzCore Lidar Port \n" );
+        printf( "Bridge connected to OzCore Lidar Port \n" );
 
-    struct timespec timeInit;
+        struct timespec timeInit;
 
-    clock_gettime( CLOCK_MONOTONIC_RAW, &timeInit );
+        clock_gettime( CLOCK_MONOTONIC_RAW, &timeInit );
 
-    unsigned char buffer[ 1000 ];
-    char trame[ 10000 ];
+        unsigned char buffer[ 1000 ];
+        char trame[ 10000 ];
 
-    int lidar[271];
-    int albedo[271];
+        int lidar[271];
+        int albedo[271];
 
-    uint16_t nbMesures = 1; //à incrémenter à chaque mesure
-    uint16_t nbTelegrammes = 1; //à incrémenter à chaque fois qu'on envoie une donnée
+        uint16_t nbMesures = 1; //à incrémenter à chaque mesure
+        uint16_t nbTelegrammes = 1; //à incrémenter à chaque fois qu'on envoie une donnée
 
-    printf( "Listening to Lidar\n" );
+        printf( "Listening to Lidar\n" );
 
-    while ( 1 )
-    {
-        memset( buffer, '\0', 1000 );
-
-        int size = read( sockLidarRobot, buffer, 1000 );
-
-        if ( size > 0 )
+        while ( 1 )
         {
-            buffer[ size ] = '\0';
+            memset( buffer, '\0', 1000 );
 
-            if ( strncmp( "\x02sRN LMDscandata 1\x03", ( char* )buffer, strlen( "\x02sRN LMDscandata 1\x03" ) ) == 0 )
+            int size = read( sockLidarRobot, buffer, 1000 );
+
+            if ( size > 0 )
             {
-                ha_lidar_packet_ptr_access_.lock( );
+                buffer[ size ] = '\0';
 
-                if( ha_lidar_packet_ptr_ != nullptr )
+                if ( strncmp( "\x02sRN LMDscandata 1\x03", ( char* )buffer, strlen( "\x02sRN LMDscandata 1\x03" ) ) == 0 )
                 {
-                    for ( int i = 0 ; i < 271 ; i++ )
+                    ha_lidar_packet_ptr_access_.lock( );
+
+                    if( ha_lidar_packet_ptr_ != nullptr )
                     {
-                        // 2 bytes
-                        lidar[ i ] = ha_lidar_packet_ptr_->distance[ i ];
+                        for ( int i = 0 ; i < 271 ; i++ )
+                        {
+                            // 2 bytes
+                            lidar[ i ] = ha_lidar_packet_ptr_->distance[ i ];
+                        }
+                        //albedo
+                        for ( int i = 0 ; i < 271 ; i++ )
+                        {
+                            // 1 byte
+                            albedo[ i ] = ha_lidar_packet_ptr_->albedo[ i ];
+                        }
+
+                        nbMesures++;
+
+                        // buffer to socket;
+                        nbTelegrammes++;
+
+                        createTrame( lidar, albedo, trame, nbMesures, nbTelegrammes, timeInit );
+
+                        (void)( write( sockLidarRobot, trame, strlen( trame ) ) + 1 );
                     }
-                    //albedo
-                    for ( int i = 0 ; i < 271 ; i++ )
-                    {
-                        // 1 byte
-                        albedo[ i ] = ha_lidar_packet_ptr_->albedo[ i ];
-                    }
 
-                    nbMesures++;
-
-                    // buffer to socket;
-                    nbTelegrammes++;
-
-                    createTrame( lidar, albedo, trame, nbMesures, nbTelegrammes, timeInit );
-
-                    (void)( write( sockLidarRobot, trame, strlen( trame ) ) + 1 );
+                    ha_lidar_packet_ptr_access_.unlock( );
                 }
-
-                ha_lidar_packet_ptr_access_.unlock( );
+            }
+            else
+            {
+                usleep( 1000 );
             }
         }
-        else
-        {
-            usleep( 1000 );
-        }
+    }
+
+    catch ( std::exception e ) {
+        std::cout<<"Exception com_simu_lidar_to_core_thread_function catch : "<< e.what() << std::endl;
     }
 }
 
@@ -2242,17 +2274,17 @@ void Core::com_simu_read_can_thread_function( )
                             com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_VER, ComSimuCanMessageType::CAN_VER_POS, data, 1 );
                         }
                     }
-                    else if( ( ( frame.can_id ) >> 7 ) == CAN_ID_TELECO )
-                    {
-                        if( ( ( frame.can_id ) % 16 ) == CAN_TELECO_NUM_VERSION )
-                        {
-                            std::cout << "setting teleco act : " << static_cast<int>( frame.data[ 6 ] ) << " self_id : " << static_cast<int>(  frame.data[ 7 ] ) << std::endl;
-
-                            com_simu_remote_status_.teleco_self_id_6 = frame.data[ 7 ];
-
-                            send_remote_can_packet( CAN_TELECO_NUM_VERSION );
-                        }
-                    }
+//                    else if( ( ( frame.can_id ) >> 7 ) == CAN_ID_TELECO )
+//                    {
+//                        if( ( ( frame.can_id ) % 16 ) == CAN_TELECO_NUM_VERSION )
+//                        {
+//                            std::cout << "setting teleco act : " << static_cast<int>( frame.data[ 6 ] ) << " self_id : " << static_cast<int>(  frame.data[ 7 ] ) << std::endl;
+//
+//                            com_simu_remote_status_.teleco_self_id_6 = frame.data[ 7 ];
+//
+//                            send_remote_can_packet( CAN_TELECO_NUM_VERSION );
+//                        }
+//                    }
                 }
             }
             else
@@ -2271,105 +2303,105 @@ void Core::com_simu_read_can_thread_function( )
 
 void Core::send_remote_can_packet( ComSimuCanMessageType message_type )
 {
-    try{
-        uint8_t remote_data[ 8 ];
-
-
-        if( message_type == ComSimuCanMessageType::CAN_TELECO_KEYS )
-        {
-            uint8_t directional_cross = 0x00;
-            uint8_t buttons1 = 0x00;
-
-            if( com_simu_remote_status_.pad_up )
-            {
-                directional_cross = ( directional_cross | ( 0x01 << 3 ) );
-            }
-
-            if( com_simu_remote_status_.pad_left )
-            {
-                directional_cross = ( directional_cross | ( 0x01 << 4 ) );
-            }
-
-            if( com_simu_remote_status_.pad_right )
-            {
-                directional_cross = ( directional_cross | ( 0x01 << 5 ) );
-            }
-
-            if( com_simu_remote_status_.pad_down )
-            {
-                directional_cross = ( directional_cross | ( 0x01 << 6 ) );
-            }
-
-            if( com_simu_remote_status_.secu_left )
-            {
-                buttons1 = ( buttons1 | ( 0x01 << 0 ) );
-            }
-
-            if( com_simu_remote_status_.secu_right )
-            {
-                buttons1 = ( buttons1 | ( 0x01 << 1 ) );
-            }
-
-            if( com_simu_remote_status_.arr_left )
-            {
-                buttons1 = ( buttons1 | ( 0x01 << 2 ) );
-            }
-
-            if( com_simu_remote_status_.arr_right )
-            {
-                buttons1 = ( buttons1 | ( 0x01 << 3 ) );
-            }
-
-            if( com_simu_remote_status_.tool_down )
-            {
-                buttons1 = ( buttons1 | ( 0x01 << 6 ) );
-            }
-
-            if( com_simu_remote_status_.tool_up )
-            {
-                buttons1 = ( buttons1 | ( 0x01 << 4 ) );
-            }
-
-            remote_data[ 0 ] = com_simu_remote_status_.analog_x;
-            remote_data[ 1 ] = com_simu_remote_status_.analog_y;
-
-            remote_data[ 2 ] = buttons1;
-            remote_data[ 3 ] = directional_cross;
-
-            remote_data[ 4 ] = 0x00;
-            remote_data[ 5 ] = 0x00;
-
-            remote_data[ 6 ] = com_simu_remote_status_.teleco_self_id_6;
-            remote_data[ 7 ] = com_simu_remote_status_.teleco_act_7;
-
-            com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_TELECO, ComSimuCanMessageType::CAN_TELECO_KEYS, remote_data, 8 );
-        }
-        else if( message_type == ComSimuCanMessageType::CAN_TELECO_NUM_VERSION )
-        {
-            remote_data[ 0 ] = 0x10;
-            remote_data[ 1 ] = 0x08;
-            remote_data[ 2 ] = 0x00;
-            remote_data[ 3 ] = 0x00;
-            remote_data[ 4 ] = 0x00;
-            remote_data[ 5 ] = 0x00;
-            remote_data[ 6 ] = com_simu_remote_status_.teleco_self_id_6;
-            remote_data[ 7 ] = com_simu_remote_status_.teleco_act_7;
-
-            if( com_simu_remote_status_.teleco_act_7 < 10 )
-            {
-                remote_data[ 2 ] = ( 4 + 128 );
-            }
-            else if( com_simu_remote_status_.teleco_act_7 > 10 )
-            {
-                remote_data[ 2 ] = ( 16 + 32 );
-            }
-
-            com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_TELECO, ComSimuCanMessageType::CAN_TELECO_NUM_VERSION, remote_data, 8 );
-        }
-    }
-    catch ( std::exception e ) {
-        std::cout<<"Exception send_remote catch : "<< e.what() << std::endl;
-    }
+//    try{
+//        uint8_t remote_data[ 8 ];
+//
+//
+//        if( message_type == ComSimuCanMessageType::CAN_TELECO_KEYS )
+//        {
+//            uint8_t directional_cross = 0x00;
+//            uint8_t buttons1 = 0x00;
+//
+//            if( com_simu_remote_status_.pad_up )
+//            {
+//                directional_cross = ( directional_cross | ( 0x01 << 3 ) );
+//            }
+//
+//            if( com_simu_remote_status_.pad_left )
+//            {
+//                directional_cross = ( directional_cross | ( 0x01 << 4 ) );
+//            }
+//
+//            if( com_simu_remote_status_.pad_right )
+//            {
+//                directional_cross = ( directional_cross | ( 0x01 << 5 ) );
+//            }
+//
+//            if( com_simu_remote_status_.pad_down )
+//            {
+//                directional_cross = ( directional_cross | ( 0x01 << 6 ) );
+//            }
+//
+//            if( com_simu_remote_status_.secu_left )
+//            {
+//                buttons1 = ( buttons1 | ( 0x01 << 0 ) );
+//            }
+//
+//            if( com_simu_remote_status_.secu_right )
+//            {
+//                buttons1 = ( buttons1 | ( 0x01 << 1 ) );
+//            }
+//
+//            if( com_simu_remote_status_.arr_left )
+//            {
+//                buttons1 = ( buttons1 | ( 0x01 << 2 ) );
+//            }
+//
+//            if( com_simu_remote_status_.arr_right )
+//            {
+//                buttons1 = ( buttons1 | ( 0x01 << 3 ) );
+//            }
+//
+//            if( com_simu_remote_status_.tool_down )
+//            {
+//                buttons1 = ( buttons1 | ( 0x01 << 6 ) );
+//            }
+//
+//            if( com_simu_remote_status_.tool_up )
+//            {
+//                buttons1 = ( buttons1 | ( 0x01 << 4 ) );
+//            }
+//
+//            remote_data[ 0 ] = com_simu_remote_status_.analog_x;
+//            remote_data[ 1 ] = com_simu_remote_status_.analog_y;
+//
+//            remote_data[ 2 ] = buttons1;
+//            remote_data[ 3 ] = directional_cross;
+//
+//            remote_data[ 4 ] = 0x00;
+//            remote_data[ 5 ] = 0x00;
+//
+//            remote_data[ 6 ] = com_simu_remote_status_.teleco_self_id_6;
+//            remote_data[ 7 ] = com_simu_remote_status_.teleco_act_7;
+//
+//            com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_TELECO, ComSimuCanMessageType::CAN_TELECO_KEYS, remote_data, 8 );
+//        }
+//        else if( message_type == ComSimuCanMessageType::CAN_TELECO_NUM_VERSION )
+//        {
+//            remote_data[ 0 ] = 0x10;
+//            remote_data[ 1 ] = 0x08;
+//            remote_data[ 2 ] = 0x00;
+//            remote_data[ 3 ] = 0x00;
+//            remote_data[ 4 ] = 0x00;
+//            remote_data[ 5 ] = 0x00;
+//            remote_data[ 6 ] = com_simu_remote_status_.teleco_self_id_6;
+//            remote_data[ 7 ] = com_simu_remote_status_.teleco_act_7;
+//
+//            if( com_simu_remote_status_.teleco_act_7 < 10 )
+//            {
+//                remote_data[ 2 ] = ( 4 + 128 );
+//            }
+//            else if( com_simu_remote_status_.teleco_act_7 > 10 )
+//            {
+//                remote_data[ 2 ] = ( 16 + 32 );
+//            }
+//
+//            com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_TELECO, ComSimuCanMessageType::CAN_TELECO_NUM_VERSION, remote_data, 8 );
+//        }
+//    }
+//    catch ( std::exception e ) {
+//        std::cout<<"Exception send_remote catch : "<< e.what() << std::endl;
+//    }
 }
 
 // ##################################################################################################

@@ -131,7 +131,7 @@ public:
 	~Core( );
 
 	// launch core
-	void init( bool graphical_display_on, std::string hostAdress_, uint16_t hostPort_ );
+	void init( bool graphical_display_on, std::string hostAdress_, uint16_t hostPort_, std::string can );
 
 private:
 	// thread function
@@ -197,7 +197,8 @@ public:
 	bool stop_main_thread_asked_;
 
 private:
-	bool graphical_display_on_;
+	std::string can_;
+    bool graphical_display_on_;
 
 	// thread part
 	bool main_thread_started_;
