@@ -80,9 +80,9 @@ char getche( void )
     return getch_( 1 );
 }
 
-// ##################################################################################################
-// ##################################################################################################
-// ##################################################################################################
+// #####################################################################################################################
+// ---------------------------------------------------------------------------------------------------------------------
+// #####################################################################################################################
 
 Core::Core( ) :
         stop_main_thread_asked_{ false },
@@ -314,6 +314,7 @@ void Core::main_thread( )
 
                 std::this_thread::sleep_for(std::chrono::milliseconds(25));
             }
+
         }
 
         main_thread_started_ = false;
@@ -427,7 +428,6 @@ void Core::server_write_thread( )
                     }
                 }
             }
-
             send_packet_list_.clear();
 
             send_packet_list_access_.unlock();
@@ -1028,6 +1028,7 @@ SDL_Window* Core::init_sdl(const char *name, int szX, int szY)
         std::cout << "DONE" << std::endl;
 
         return screen;
+
     }
     catch ( std::exception e ) {
         std::cout<<"Exception init_sdl catch : "<< e.what() << std::endl;
@@ -1390,6 +1391,7 @@ void Core::manage_received_packet(BaseNaio01PacketPtr packetPtr)
 
             com_simu_send_can_packet(ComSimuCanMessageId::CAN_ID_VER, ComSimuCanMessageType::CAN_VER_POS, data, 1);
         }
+
     }
     catch ( std::exception e ) {
         std::cout<<"Exception main_thread catch : "<< e.what() << std::endl;
@@ -1870,8 +1872,6 @@ void Core::com_simu_read_serial_thread_function( )
                     if ( motorNumber == 2 )
                     {
                         HaMotorsPacketPtr haMotorsPacketPtr = std::make_shared<HaMotorsPacket>( motors[ 2 ], motors[ 1 ] );
-
-                        std::cout<<"MOTOR PACKET" << static_cast<int>( motors[ 2 ] ) << " " << static_cast<int>( motors[ 1 ] )<<std::endl;
 
                         send_packet_list_access_.lock();
                         send_packet_list_.push_back( haMotorsPacketPtr );
@@ -2486,9 +2486,11 @@ void Core::gps_manager_thread_function( )
                 HaGpsPacketPtr previous_ha_gps_packet_ptr = previous_ha_gps_packet_ptr_;
                 ha_gps_packet_ptr_access_.unlock();
 
-                if( ha_gps_packet_ptr == nullptr )
+                if( ha_gps_packet_ptr != nullptr )
                 {
-                    return;
+                    std::this_thread::sleep_for( std::chrono::milliseconds( 100 ) );
+
+                    continue;
                 }
 
                 double track_orientation = 0.0;
