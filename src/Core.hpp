@@ -197,6 +197,7 @@ public:
 	bool stop_main_thread_asked_;
 
 private:
+	bool use_virtual_can_;
 	std::string can_;
     bool graphical_display_on_;
 

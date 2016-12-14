@@ -86,6 +86,7 @@ char getche( void )
 
 Core::Core( ) :
         stop_main_thread_asked_{ false },
+		use_virtual_can_{ true },
         main_thread_started_{ false },
         main_thread_{ },
         host_adress_{ "10.0.1.1" },
@@ -181,9 +182,21 @@ Core::~Core( )
 
 void Core::init( bool graphical_display_on, std::string hostAdress, uint16_t hostPort, std::string can )
 {
-    try {
-
+    try
+	{
         can_ = can;
+
+		if( can_ == "pcan" )
+		{
+			std::cout << "using physical can" << std::endl;
+
+			use_virtual_can_ = false;
+		}
+		else
+		{
+			std::cout << "using virtual can" << std::endl;
+		}
+
         graphical_display_on_ = graphical_display_on;
         host_adress_ = hostAdress;
         host_port_ = hostPort;
@@ -1106,6 +1119,10 @@ Core::manage_sdl_keyboard()
 
             left = 63;
             right = 32;
+
+//			left = 50;
+//			right = 19;
+
             keyPressed = true;
         }
 
@@ -1806,7 +1823,7 @@ void Core::com_simu_create_virtual_can( )
 {
     (void)( system( "ifconfig can0 down"));
 
-    if (can_ == "vcan")
+    if ( use_virtual_can_ == true )
     {
         (void)( system( "modprobe can" ) + 1 );
         (void)( system( "modprobe can_raw" ) + 1 );
@@ -1814,7 +1831,7 @@ void Core::com_simu_create_virtual_can( )
         (void)( system( "ip link add dev can0 type vcan" ) + 1 );
         (void)( system( "ip link set up can0" ) + 1 );
     }
-    else if(can_ == "pcan")
+    else
     {
         std::cout<<"pcan"<<std::endl;
         (void)( system( "modprobe pcan"));
@@ -1857,7 +1874,7 @@ void Core::com_simu_read_serial_thread_function( )
             std::cout << "connected to /tmp/ttyS1" << std::endl;
         }
 
-        while ( 1 )
+        while ( true )
         {
             ssize_t serial_read_size = read( serialPort, b, 1 );
 
@@ -1872,6 +1889,8 @@ void Core::com_simu_read_serial_thread_function( )
                     if ( motorNumber == 2 )
                     {
                         HaMotorsPacketPtr haMotorsPacketPtr = std::make_shared<HaMotorsPacket>( motors[ 2 ], motors[ 1 ] );
+
+						std::cout << "Motors : " << static_cast<int>( motors[ 2 ] ) << " : " << static_cast<int>( motors[ 1 ] ) << std::endl;
 
                         send_packet_list_access_.lock();
                         send_packet_list_.push_back( haMotorsPacketPtr );
@@ -2274,17 +2293,17 @@ void Core::com_simu_read_can_thread_function( )
                             com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_VER, ComSimuCanMessageType::CAN_VER_POS, data, 1 );
                         }
                     }
-//                    else if( ( ( frame.can_id ) >> 7 ) == CAN_ID_TELECO )
-//                    {
-//                        if( ( ( frame.can_id ) % 16 ) == CAN_TELECO_NUM_VERSION )
-//                        {
-//                            std::cout << "setting teleco act : " << static_cast<int>( frame.data[ 6 ] ) << " self_id : " << static_cast<int>(  frame.data[ 7 ] ) << std::endl;
-//
-//                            com_simu_remote_status_.teleco_self_id_6 = frame.data[ 7 ];
-//
-//                            send_remote_can_packet( CAN_TELECO_NUM_VERSION );
-//                        }
-//                    }
+                    else if( use_virtual_can_ == true and ( ( ( frame.can_id ) >> 7 ) == CAN_ID_TELECO ) )
+                    {
+                        if( ( ( frame.can_id ) % 16 ) == CAN_TELECO_NUM_VERSION )
+                        {
+                            std::cout << "setting teleco act : " << static_cast<int>( frame.data[ 6 ] ) << " self_id : " << static_cast<int>(  frame.data[ 7 ] ) << std::endl;
+
+                            com_simu_remote_status_.teleco_self_id_6 = frame.data[ 7 ];
+
+                            send_remote_can_packet( CAN_TELECO_NUM_VERSION );
+                        }
+                    }
                 }
             }
             else
@@ -2303,105 +2322,110 @@ void Core::com_simu_read_can_thread_function( )
 
 void Core::send_remote_can_packet( ComSimuCanMessageType message_type )
 {
-//    try{
-//        uint8_t remote_data[ 8 ];
-//
-//
-//        if( message_type == ComSimuCanMessageType::CAN_TELECO_KEYS )
-//        {
-//            uint8_t directional_cross = 0x00;
-//            uint8_t buttons1 = 0x00;
-//
-//            if( com_simu_remote_status_.pad_up )
-//            {
-//                directional_cross = ( directional_cross | ( 0x01 << 3 ) );
-//            }
-//
-//            if( com_simu_remote_status_.pad_left )
-//            {
-//                directional_cross = ( directional_cross | ( 0x01 << 4 ) );
-//            }
-//
-//            if( com_simu_remote_status_.pad_right )
-//            {
-//                directional_cross = ( directional_cross | ( 0x01 << 5 ) );
-//            }
-//
-//            if( com_simu_remote_status_.pad_down )
-//            {
-//                directional_cross = ( directional_cross | ( 0x01 << 6 ) );
-//            }
-//
-//            if( com_simu_remote_status_.secu_left )
-//            {
-//                buttons1 = ( buttons1 | ( 0x01 << 0 ) );
-//            }
-//
-//            if( com_simu_remote_status_.secu_right )
-//            {
-//                buttons1 = ( buttons1 | ( 0x01 << 1 ) );
-//            }
-//
-//            if( com_simu_remote_status_.arr_left )
-//            {
-//                buttons1 = ( buttons1 | ( 0x01 << 2 ) );
-//            }
-//
-//            if( com_simu_remote_status_.arr_right )
-//            {
-//                buttons1 = ( buttons1 | ( 0x01 << 3 ) );
-//            }
-//
-//            if( com_simu_remote_status_.tool_down )
-//            {
-//                buttons1 = ( buttons1 | ( 0x01 << 6 ) );
-//            }
-//
-//            if( com_simu_remote_status_.tool_up )
-//            {
-//                buttons1 = ( buttons1 | ( 0x01 << 4 ) );
-//            }
-//
-//            remote_data[ 0 ] = com_simu_remote_status_.analog_x;
-//            remote_data[ 1 ] = com_simu_remote_status_.analog_y;
-//
-//            remote_data[ 2 ] = buttons1;
-//            remote_data[ 3 ] = directional_cross;
-//
-//            remote_data[ 4 ] = 0x00;
-//            remote_data[ 5 ] = 0x00;
-//
-//            remote_data[ 6 ] = com_simu_remote_status_.teleco_self_id_6;
-//            remote_data[ 7 ] = com_simu_remote_status_.teleco_act_7;
-//
-//            com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_TELECO, ComSimuCanMessageType::CAN_TELECO_KEYS, remote_data, 8 );
-//        }
-//        else if( message_type == ComSimuCanMessageType::CAN_TELECO_NUM_VERSION )
-//        {
-//            remote_data[ 0 ] = 0x10;
-//            remote_data[ 1 ] = 0x08;
-//            remote_data[ 2 ] = 0x00;
-//            remote_data[ 3 ] = 0x00;
-//            remote_data[ 4 ] = 0x00;
-//            remote_data[ 5 ] = 0x00;
-//            remote_data[ 6 ] = com_simu_remote_status_.teleco_self_id_6;
-//            remote_data[ 7 ] = com_simu_remote_status_.teleco_act_7;
-//
-//            if( com_simu_remote_status_.teleco_act_7 < 10 )
-//            {
-//                remote_data[ 2 ] = ( 4 + 128 );
-//            }
-//            else if( com_simu_remote_status_.teleco_act_7 > 10 )
-//            {
-//                remote_data[ 2 ] = ( 16 + 32 );
-//            }
-//
-//            com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_TELECO, ComSimuCanMessageType::CAN_TELECO_NUM_VERSION, remote_data, 8 );
-//        }
-//    }
-//    catch ( std::exception e ) {
-//        std::cout<<"Exception send_remote catch : "<< e.what() << std::endl;
-//    }
+	if( not use_virtual_can_ )
+	{
+		return;
+	}
+
+    try{
+        uint8_t remote_data[ 8 ];
+
+
+        if( message_type == ComSimuCanMessageType::CAN_TELECO_KEYS )
+        {
+            uint8_t directional_cross = 0x00;
+            uint8_t buttons1 = 0x00;
+
+            if( com_simu_remote_status_.pad_up )
+            {
+                directional_cross = ( directional_cross | ( 0x01 << 3 ) );
+            }
+
+            if( com_simu_remote_status_.pad_left )
+            {
+                directional_cross = ( directional_cross | ( 0x01 << 4 ) );
+            }
+
+            if( com_simu_remote_status_.pad_right )
+            {
+                directional_cross = ( directional_cross | ( 0x01 << 5 ) );
+            }
+
+            if( com_simu_remote_status_.pad_down )
+            {
+                directional_cross = ( directional_cross | ( 0x01 << 6 ) );
+            }
+
+            if( com_simu_remote_status_.secu_left )
+            {
+                buttons1 = ( buttons1 | ( 0x01 << 0 ) );
+            }
+
+            if( com_simu_remote_status_.secu_right )
+            {
+                buttons1 = ( buttons1 | ( 0x01 << 1 ) );
+            }
+
+            if( com_simu_remote_status_.arr_left )
+            {
+                buttons1 = ( buttons1 | ( 0x01 << 2 ) );
+            }
+
+            if( com_simu_remote_status_.arr_right )
+            {
+                buttons1 = ( buttons1 | ( 0x01 << 3 ) );
+            }
+
+            if( com_simu_remote_status_.tool_down )
+            {
+                buttons1 = ( buttons1 | ( 0x01 << 6 ) );
+            }
+
+            if( com_simu_remote_status_.tool_up )
+            {
+                buttons1 = ( buttons1 | ( 0x01 << 4 ) );
+            }
+
+            remote_data[ 0 ] = com_simu_remote_status_.analog_x;
+            remote_data[ 1 ] = com_simu_remote_status_.analog_y;
+
+            remote_data[ 2 ] = buttons1;
+            remote_data[ 3 ] = directional_cross;
+
+            remote_data[ 4 ] = 0x00;
+            remote_data[ 5 ] = 0x00;
+
+            remote_data[ 6 ] = com_simu_remote_status_.teleco_self_id_6;
+            remote_data[ 7 ] = com_simu_remote_status_.teleco_act_7;
+
+            com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_TELECO, ComSimuCanMessageType::CAN_TELECO_KEYS, remote_data, 8 );
+        }
+        else if( message_type == ComSimuCanMessageType::CAN_TELECO_NUM_VERSION )
+        {
+            remote_data[ 0 ] = 0x10;
+            remote_data[ 1 ] = 0x08;
+            remote_data[ 2 ] = 0x00;
+            remote_data[ 3 ] = 0x00;
+            remote_data[ 4 ] = 0x00;
+            remote_data[ 5 ] = 0x00;
+            remote_data[ 6 ] = com_simu_remote_status_.teleco_self_id_6;
+            remote_data[ 7 ] = com_simu_remote_status_.teleco_act_7;
+
+            if( com_simu_remote_status_.teleco_act_7 < 10 )
+            {
+                remote_data[ 2 ] = ( 4 + 128 );
+            }
+            else if( com_simu_remote_status_.teleco_act_7 > 10 )
+            {
+                remote_data[ 2 ] = ( 16 + 32 );
+            }
+
+            com_simu_send_can_packet( ComSimuCanMessageId::CAN_ID_TELECO, ComSimuCanMessageType::CAN_TELECO_NUM_VERSION, remote_data, 8 );
+        }
+    }
+    catch ( std::exception e ) {
+        std::cout<<"Exception send_remote catch : "<< e.what() << std::endl;
+    }
 }
 
 // ##################################################################################################
