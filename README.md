@@ -11,6 +11,9 @@ Mandatory action :
 - You need, a robot with open api, or a simulator, to connect on.
 
 
+You may have to install additionnal libraries, just follow error messages.
+
+
 Please send back any problems you had been faced off (like path or questions), for further improvment of this document.
 
 
