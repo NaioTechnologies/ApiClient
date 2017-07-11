@@ -54,7 +54,7 @@ public:
 	const int64_t IMAGE_SERVER_WATCHDOG_SENDING_RATE_MS = 100;
 	const int64_t IMAGE_PREPARING_RATE_MS = 25;
 
-	const int64_t TIME_BEFORE_IMAGE_LOST_MS = 500;
+	const uint64_t TIME_BEFORE_IMAGE_LOST_MS = 500;
 public:
 
 	Core( );

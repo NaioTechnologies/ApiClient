@@ -856,7 +856,7 @@ Core::manageReceivedPacket( BaseNaio01PacketPtr packetPtr )
         ApiStereoCameraPacketPtr api_stereo_camera_packet_ptr = std::dynamic_pointer_cast<ApiStereoCameraPacket>( packetPtr );
 
         milliseconds now_ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
-        last_image_received_time_ = static_cast<int64_t>( now_ms.count() );
+        last_image_received_time_ = static_cast<uint64_t>( now_ms.count() );
 
         api_stereo_camera_packet_ptr_access_.lock();
         api_stereo_camera_packet_ptr_ = api_stereo_camera_packet_ptr;
@@ -969,7 +969,7 @@ void Core::image_server_read_thread( )
                         ApiStereoCameraPacketPtr api_stereo_camera_packet_ptr = std::dynamic_pointer_cast<ApiStereoCameraPacket>( packetPtr );
 
                         milliseconds now_ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
-                        last_image_received_time_ = static_cast<int64_t>( now_ms.count() );
+                        last_image_received_time_ = static_cast<uint64_t>( now_ms.count() );
 
                         api_stereo_camera_packet_ptr_access_.lock();
                         api_stereo_camera_packet_ptr_ = api_stereo_camera_packet_ptr;
@@ -1099,9 +1099,9 @@ void Core::image_preparer_thread( )
         else
         {
             milliseconds now_ms = duration_cast< milliseconds >( system_clock::now().time_since_epoch() );
-            int64_t now = static_cast<int64_t>( now_ms.count() );
+            uint64_t now = static_cast<uint64_t>( now_ms.count() );
 
-            int64_t diff_time = now - last_image_received_time_;
+            uint64_t diff_time = now - last_image_received_time_;
 
             if( diff_time > TIME_BEFORE_IMAGE_LOST_MS )
             {
@@ -1153,14 +1153,14 @@ void Core::server_write_thread( )
 
         last_actuator_access_.lock();
 
-        ApiMoveActuatorPacketPtr ApiMoveActuatorPacketPtr = std::make_shared<ApiMoveActuatorPacket>( last_actuator_ );
+        ApiMoveActuatorPacketPtr apiMoveActuatorPacketPtr = std::make_shared<ApiMoveActuatorPacket>( last_actuator_ );
 
         last_actuator_access_.unlock();
 
         sendPacketListAccess_.lock();
 
         sendPacketList_.push_back( haMotorsPacketPtr );
-        sendPacketList_.push_back( ApiMoveActuatorPacketPtr );
+        sendPacketList_.push_back( apiMoveActuatorPacketPtr );
 
         for( auto&& packet : sendPacketList_ )
         {
