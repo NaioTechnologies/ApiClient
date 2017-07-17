@@ -3,7 +3,11 @@ ApiClient Skeleton. Tutorial purpose.
 
 Mandatory action :
 
-- You need to install SDL2 elements.
+- You need to install SDL2 elements.  
+    sudo apt-get install libsdl2-dev
+    sudo apt-get install libsdl2-ttf-dev
+    sudo apt-get install libsdl2-gfx-dev
+
 - Clone ApiCodec into /ext/   ( https://github.com/NaioTechnologies/ApiCodec )
 - You must compile /ext/ApiCodec before compiling ApiClient, create a build folder, and do into this last : cmake .. then make
 - You need the 2 ttf files within the same executable folder to run the application.
