@@ -61,7 +61,7 @@ public:
 	~Core( );
 
 	// launch core
-	void init( std::string hostAdress_, uint16_t hostPort_ );
+	void init( std::string hostAdress, uint16_t hostPort, uint16_t imagehostPort );
 
 	// thread management
 	void stop( );
@@ -116,6 +116,7 @@ private:
 	// socket part
 	std::string hostAdress_;
 	uint16_t hostPort_;
+	uint16_t imageHostPort_;
 	int socket_desc_;
 	bool socketConnected_;
 

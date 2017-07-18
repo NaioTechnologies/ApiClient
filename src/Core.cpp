@@ -25,6 +25,7 @@ Core::Core( ) :
         graphicThread_{ },
         hostAdress_{ "127.0.0.1" },
         hostPort_{ 5555 },
+        imageHostPort_{ 5557 },
         socketConnected_{false},
         naioCodec_{ },
         sendPacketList_{ },
@@ -64,10 +65,11 @@ Core::~Core( )
 // #################################################
 //
 void
-Core::init( std::string hostAdress, uint16_t hostPort )
+Core::init( std::string hostAdress, uint16_t hostPort,  uint16_t imageHostPort )
 {
     hostAdress_ = hostAdress;
     hostPort_ = hostPort;
+	imageHostPort_ = imageHostPort;
 
     stopThreadAsked_ = false;
     threadStarted_ = false;
@@ -906,7 +908,7 @@ void Core::image_server_thread( )
     imageServer.sin_addr.s_addr = inet_addr( hostAdress_.c_str() );
     imageServer.sin_family = AF_INET;
 
-    imageServer.sin_port = htons( static_cast<uint16_t>( 5557 ) );
+    imageServer.sin_port = htons( static_cast<uint16_t>( imageHostPort_ ) );
 
     //Connect to remote server
     if ( connect( image_socket_desc_, ( struct sockaddr * ) &imageServer, sizeof( imageServer ) ) < 0 )
