@@ -8,7 +8,7 @@ Mandatory action :
     sudo apt-get install libsdl2-ttf-dev
     sudo apt-get install libsdl2-gfx-dev
 
-- Clone ApiCodec into /ext/   ( https://github.com/NaioTechnologies/__deprecated__ApiCodec branch master )
+- Clone ApiCodec into /ext/   ( https://github.com/NaioTechnologies/ApiCodec branch master )
 - You must compile /ext/ApiCodec before compiling ApiClient, create a build folder, and do into this last : cmake .. then make
 - You need the 2 ttf files within the same executable folder to run the application.
 - compile ApiClient into a build folder with : cmake ..  and make.
